@@ -20,7 +20,8 @@ Repository: `strigops-io/plumb`. Starting revision:
 | 256-page groups, masks, sparse offsets | Implemented in memory | Scalar union, intersection and finite set difference; canonical immutable representation |
 | Boolean query compilation | Not implemented for postings | Existing TINQL heap evaluator remains authoritative; library difference is not SQL NOT |
 | Terms, positions, frequencies and stats in storage | Not implemented | No dictionary, position stream or index-backed BM25 |
-| Metapage, serialization and segment directory | Not implemented | No disk-format promise or production migration path |
+| Standalone postings serialization | Experimental v1 codec implemented | Canonical little-endian frame, CRC32C, allocation-free validation and explicit limits; docs/postings-format.md |
+| Metapage and segment directory | Not implemented | Codec is not a PostgreSQL storage format or production migration path |
 | WAL, generation publication, recovery and replication | Not implemented for postings | The new library is not used by the access method |
 | Online writes, HOT, VACUUM liveness and CTID reuse | Not implemented for postings | Heap-backed baseline behavior must not be confused with persistent-index correctness |
 | Bounded PostgreSQL memory/interrupts | Not implemented in postings | Rust vectors allocate whole inputs/results; not charged to PostgreSQL contexts |
@@ -35,8 +36,21 @@ private source was used. PostgreSQL source now has independent Plumb identities 
 exact operator-OID binding. Inherited tests retain their behavior assertions with
 name/operator substitutions; five identity tests were added.
 
-- Pure Rust command below: **354 tests passed** (345 inherited tests plus 8 new
+- Checkpoint 001: **354 pure Rust tests passed** (345 inherited tests plus 8 new
   postings tests and 1 new doctest).
+- Checkpoint 002 adds the standalone v1 codec: the combined pure Rust suite passes
+  **377 tests**, including **32 postings tests/doctests**. The same postings suite
+  also passes in release mode. Clippy passes with warnings denied.
+- Codec implementation and reference tests were written by separate agents, then
+  independently reviewed. Tests pin golden bytes, resealed malformed frames,
+  deterministic random inputs, all truncations/single-bit mutations of fixtures,
+  inclusive limits and exact allocation failures. A dedicated test binary verifies
+  that rejected inputs allocate nothing and partial allocations are released.
+- Checkpoint 002 does not change postgres/ or its dependencies. The PostgreSQL and
+  coexistence results below are carried forward from the unchanged checkpoint-001
+  extension; they were not rerun for a standalone codec-only milestone.
+- No 32-bit runtime test or exhaustive fuzzing is claimed; 32-bit CI and longer
+  fuzz campaigns remain follow-up validation.
 - Postings tests also passed in release mode; `cargo fmt` and Clippy passed for
   the new crate with warnings denied.
 - Before the SQL rename, unchanged upstream `cargo pgrx test pg17` passed 36 tests.
@@ -105,9 +119,10 @@ This initial ledger records provenance, not a claim of full TIN equivalence.
 
 ## Next implementation gates
 
-1. Design a versioned metapage/segment format and corruption-checked codec. Keep
-   extension version and format version distinct. Specify page sizes, bounds and
-   compatibility failures before wiring buffers into scans.
+1. Design a PostgreSQL metapage/segment directory and page/extent layout around the
+   standalone postings codec. Keep extension version and format version distinct.
+   The codec is only one component: ownership, locking, publication and recovery
+   contracts remain unresolved before wiring buffers into scans.
 2. Implement PostgreSQL-managed, WAL-safe bulk storage and exact term candidate
    CTIDs. A build-only milestone must explicitly reject unsupported mutations or
    maintain a provably correct fallback—silently stale postings are unacceptable.

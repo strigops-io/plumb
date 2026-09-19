@@ -45,6 +45,7 @@ This investigation asks two questions:
 
 - Retains Lead's TINQL, tokenizers, scoring/highlighting behavior and heap-backed access method, with independent Plumb SQL identities. Inherited behavior assertions are retained with name/operator substitutions; new tests enforce provider isolation.
 - Adds a standalone, zero-dependency [CTID postings core](postings/) with 256-page groups, page-presence masks, sparse tuple offsets and scalar union/intersection/set subtraction. It is tested against reference sets and **not yet connected to SQL scans**.
+- Adds an [experimental versioned postings codec](docs/postings-format.md) with CRC32C, canonical encoding, allocation-free validation and explicit decode limits. These are standalone bytes, **not a durable PostgreSQL index format**.
 - Adds a [reproducible PostgreSQL baseline](benches/README.md) with generated datasets, query plans and full result-set checks; no hosted service or proprietary test suite is required.
 
 **SQL execution is still Lead's deliberately slow implementation.** Every index scan returns all heap pages as candidates; PostgreSQL rechecks visible rows for exact TINQL and MVCC behavior. The SQL index stores no search data. There is no SQL speedup in this milestone. Persistent postings, WAL, online ingestion, VACUUM maintenance and production qualification remain future work.
@@ -73,7 +74,7 @@ Then run `CREATE EXTENSION plumb` in that database. For PostgreSQL 17, use `pg17
 
 The Plumb API provides the `plumb` access method, `~~>` operator, TINQL parsing, tokenizer and index reloptions, scoring functions `plumb.score`, `plumb.full_score`, `plumb.max_score`, and `plumb.score_inspect`, plus explicit and implicitly bound `plumb.highlight` and `plumb.highlight_ansi`. Their underlying behavior is inherited from Lead; this is query-language/behavior compatibility, not drop-in SQL-name compatibility. PostgreSQL 17 and 18 are build targets. Search results are rechecked against visible heap tuples, including expression and partial-index rechecks.
 
-Scoring deliberately rescans and retokenizes the visible indexed column or expression. A score call must be in the same query level as the matching `==>` predicate. Implicit highlighting has the same binding boundary; passing its `query` argument explicitly works without a bound predicate. No additional hosted TIN equivalence is claimed by this milestone.
+Scoring deliberately rescans and retokenizes the visible indexed column or expression. A score call must be in the same query level as the matching Plumb `~~>` predicate. Implicit highlighting has the same binding boundary; passing its `query` argument explicitly works without a bound predicate. No additional hosted TIN equivalence is claimed by this milestone.
 
 ## Execution and storage today
 

@@ -26,6 +26,8 @@
 use std::cmp::Ordering;
 use std::fmt;
 
+pub mod codec;
+
 /// A validated physical tuple identifier, ordered by block then offset.
 ///
 /// All blocks except `u32::MAX` are accepted. All nonzero `u16` offsets are

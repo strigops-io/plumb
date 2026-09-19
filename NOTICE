@@ -22,6 +22,7 @@ Modifications in this investigation include:
 - planner binding isolation for Plumb scoring and highlighting;
 - identity and public-Lead coexistence tests;
 - scalar CTID postings with 256-page grouping and finite-set operations;
+- experimental v1 postings codec, CRC32C, bounded decoding and corruption/allocation tests;
 - development-dataset baseline tooling, CI changes and investigation documentation.
 
 The inherited language crates retain their original authorship and version metadata.

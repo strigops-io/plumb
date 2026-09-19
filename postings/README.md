@@ -45,8 +45,29 @@ contexts. Input and output can coexist in memory, and allocation is not bounded 
 interrupt checks and PostgreSQL memory accounting remain future work.
 
 Do not wire this directly into the access method without resolving those resource
-and correctness boundaries. There is deliberately no serialization API or promise
-of a stable on-disk layout yet.
+and correctness boundaries. The standalone codec below does not establish a stable
+PostgreSQL on-disk layout or production upgrade path.
+
+## Experimental v1 codec
+
+`plumb_postings::codec::{encode, decode, DecodeLimits, CodecError}` serializes one
+finite CTID set in a documented little-endian frame, with a versioned 40-byte
+header and CRC32C covering metadata and body. See the exact
+[format contract](../docs/postings-format.md).
+
+Decode validates the complete frame without allocation, then constructs grouped
+postings using fallible exact reservations. It rejects unsupported versions,
+unknown flags, corruption, noncanonical groups/offsets, truncation, trailing bytes,
+count mismatches and caller-limit violations. Limits cover encoded bytes, groups,
+pages, postings and requested decoded vector element storage. The storage budget
+is **not a process RSS cap** and excludes allocator overhead and borrowed input.
+The encoder accepts a validated set and allocates its complete output, with no
+separate caller budget.
+
+This does not add dictionaries, metapages, PostgreSQL buffers, WAL, durable segment
+publication or SQL acceleration. The crate remains dependency-free and forbids
+unsafe code; the separate allocation-failure test binary narrowly uses a documented
+unsafe allocator wrapper to exercise errors, not in library code.
 
 ## Validation
 
@@ -62,6 +83,9 @@ Tests cover every page-mask bit, 63/64 and 255/256 boundaries, high block number
 all nonzero u16 offsets, duplicate/empty input, representation invariants,
 96 deterministic generated corpus pairs and all 4,096 pairs of subsets of a small
 CTID universe. Operations are compared with `BTreeSet` references and algebraic
-identities. These tests establish set behavior, not PostgreSQL MVCC or durability.
+identities. Codec tests additionally cover pinned golden bytes, corrupt and resealed
+frames, bounded generated inputs, limits, allocation failure at every reservation,
+and allocation-free rejection. All 32 postings tests/doctests pass in debug and
+release builds. These establish set/codec behavior, not PostgreSQL MVCC or durability.
 
 AGPL-3.0-or-later; see the repository's LICENSE.
