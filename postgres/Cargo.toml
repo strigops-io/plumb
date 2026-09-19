@@ -1,8 +1,9 @@
+# Modified by Plumb contributors on 2026-09-20: independent package identity and version.
 [package]
-name = "tin"
-description = "Lead: TIN-compatible text search for non-production PostgreSQL"
-version.workspace = true
-authors.workspace = true
+name = "plumb"
+description = "Plumb: independent PostgreSQL text-search proof of concept"
+version = "0.1.0"
+authors = ["Plumb contributors"]
 edition.workspace = true
 license.workspace = true
 

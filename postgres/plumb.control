@@ -1,0 +1,8 @@
+# Modified by Plumb contributors on 2026-09-20: independent extension, library, and schema.
+comment = 'Plumb: independent text-search proof of concept'
+default_version = '@CARGO_VERSION@'
+module_pathname = 'plumb'
+relocatable = false
+schema = 'plumb'
+superuser = true
+trusted = false

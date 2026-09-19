@@ -1,6 +1,7 @@
+# Modified by Plumb contributors on 2026-09-20: add the independent scalar postings crate.
 [workspace]
 resolver = "3"
-members = ["boldi-vigna", "postgres", "tinql", "tokenizer"]
+members = ["boldi-vigna", "postgres", "tinql", "tokenizer", "postings"]
 
 [workspace.package]
 version = "1.0.3"

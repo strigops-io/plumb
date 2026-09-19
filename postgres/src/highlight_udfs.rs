@@ -14,13 +14,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 // The full license text is available in LICENSE.
+// Modified by Plumb contributors on 2026-09-20: independent Plumb SQL identity and operator isolation.
 use crate::highlight::{highlight_text, highlight_text_ansi, positions_from_query, rewrap_text};
 use pgrx::{FromDatum, Internal, IntoDatum, PgList, default, pg_extern, pg_guard, pg_sys};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_void};
 
 fn missing_binding(function: &str) -> ! {
-    pgrx::error!("{function} requires an explicit query or a matching tin index scan")
+    pgrx::error!("{function} requires an explicit query or a matching plumb index scan")
 }
 
 fn render_highlight(
@@ -30,7 +31,7 @@ fn render_highlight(
     query: Option<&str>,
 ) -> Option<String> {
     let text = text?;
-    let query = query.unwrap_or_else(|| missing_binding("tin.highlight()"));
+    let query = query.unwrap_or_else(|| missing_binding("plumb.highlight()"));
     let positions = positions_from_query(query, text);
     highlight_text(text, begin_tag, end_tag, &positions)
         .map(Some)
@@ -43,7 +44,7 @@ fn render_highlight_ansi(
     query: Option<&str>,
 ) -> Option<String> {
     let text = text?;
-    let query = query.unwrap_or_else(|| missing_binding("tin.highlight_ansi()"));
+    let query = query.unwrap_or_else(|| missing_binding("plumb.highlight_ansi()"));
     let text = match wrap_to {
         Some(width) if width <= 0 => pgrx::error!("wrap_to must be positive"),
         Some(width) => Cow::Owned(rewrap_text(text, width as usize)),
@@ -109,6 +110,7 @@ unsafe extern "C-unwind" fn collect_varno(node: *mut pg_sys::Node, context: *mut
 }
 
 struct QueryContext {
+    operator_oid: pg_sys::Oid,
     document: *mut pg_sys::Node,
     queries: Vec<*mut pg_sys::Node>,
 }
@@ -121,9 +123,8 @@ unsafe extern "C-unwind" fn collect_queries(node: *mut pg_sys::Node, context: *m
     let context = unsafe { &mut *context.cast::<QueryContext>() };
     if unsafe { (*node).type_ } == pg_sys::NodeTag::T_OpExpr {
         let op = node.cast::<pg_sys::OpExpr>();
-        let name = unsafe { pg_sys::get_opname((*op).opno) };
-        if !name.is_null()
-            && unsafe { CStr::from_ptr(name) }.to_bytes() == b"==>"
+        if context.operator_oid != pg_sys::InvalidOid
+            && unsafe { (*op).opno } == context.operator_oid
             && unsafe { pg_sys::list_length((*op).args) } == 2
         {
             let left = unsafe { pg_sys::list_nth((*op).args, 0).cast::<pg_sys::Node>() };
@@ -234,11 +235,12 @@ fn highlight_support(request: Internal) -> Internal {
         let rte = pg_sys::list_nth((*parse).rtable, vars.varno - 1).cast::<pg_sys::RangeTblEntry>();
         if rte.is_null()
             || (*rte).rtekind != pg_sys::RTEKind::RTE_RELATION
-            || crate::score::find_matching_tin_index((*rte).relid, vars.varno, document).is_none()
+            || crate::score::find_matching_plumb_index((*rte).relid, vars.varno, document).is_none()
         {
             return unhandled();
         }
         let mut binding = QueryContext {
+            operator_oid: crate::operator::search_operator_oid(),
             document,
             queries: Vec::new(),
         };

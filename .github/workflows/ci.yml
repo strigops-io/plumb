@@ -1,13 +1,37 @@
+# Modified by Plumb contributors on 2026-09-20: independent Plumb package and scalar test coverage.
 name: CI
 
 on:
   push:
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  scalar-and-language:
+    name: Scalar postings and language / ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install pinned toolchain components
+        run: rustup component add rustfmt clippy
+      - name: Check postings formatting
+        run: cargo fmt --package plumb-postings --check
+      - name: Test scalar postings and inherited language suites
+        run: cargo test --locked -p plumb-postings -p tinql -p tokenizer -p boldi-vigna
+      - name: Test optimized postings
+        run: cargo test --locked --release -p plumb-postings
+      - name: Lint postings
+        run: cargo clippy --locked -p plumb-postings --all-targets -- -D warnings
+
   build-and-test:
     name: ${{ matrix.arch.name }} / PostgreSQL ${{ matrix.postgres }}
     runs-on: ${{ matrix.arch.runner }}
@@ -64,7 +88,7 @@ jobs:
       - name: Build
         env:
           PG_MAJOR: ${{ matrix.postgres }}
-        run: cargo build --locked --package tin --no-default-features --features "pg${PG_MAJOR}"
+        run: cargo build --locked --package plumb --no-default-features --features "pg${PG_MAJOR}"
 
       - name: Clippy
         env:
@@ -74,4 +98,4 @@ jobs:
       - name: Test local suite
         env:
           PG_MAJOR: ${{ matrix.postgres }}
-        run: cargo pgrx test "pg${PG_MAJOR}" --package tin --no-default-features --features "pg${PG_MAJOR}"
+        run: cargo pgrx test "pg${PG_MAJOR}" --package plumb --no-default-features --features "pg${PG_MAJOR}"

@@ -14,6 +14,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 // The full license text is available in LICENSE.
+// Modified by Plumb contributors on 2026-09-20: independent Plumb SQL identity and operator isolation.
 use pgrx::pg_guard;
 
 ::pgrx::pg_module_magic!(name);
@@ -28,6 +29,9 @@ pub(crate) mod options;
 mod score;
 mod tf_bucket;
 mod udfs;
+
+#[cfg(feature = "pg_test")]
+mod identity_tests;
 
 #[pg_guard]
 pub extern "C-unwind" fn _PG_init() {
@@ -62,16 +66,16 @@ mod tests {
                (1, 'craft beer'), (2, 'wine'), (3, 'beer festival')",
         )
         .unwrap();
-        Spi::run("CREATE INDEX lite_search_idx ON lite_search USING tin (body)").unwrap();
+        Spi::run("CREATE INDEX lite_search_idx ON lite_search USING plumb (body)").unwrap();
         Spi::run("SET LOCAL enable_seqscan = off").unwrap();
         let ids = Spi::get_one::<Vec<i32>>(
-            "SELECT array_agg(id ORDER BY id) FROM lite_search WHERE body ==> 'beer'",
+            "SELECT array_agg(id ORDER BY id) FROM lite_search WHERE body ~~> 'beer'",
         )
         .unwrap();
         assert_eq!(ids, Some(vec![1, 3]));
         let plan = Spi::get_one::<Json>(
             "EXPLAIN (ANALYZE, FORMAT JSON)
-             SELECT id FROM lite_search WHERE body ==> 'beer'",
+             SELECT id FROM lite_search WHERE body ~~> 'beer'",
         )
         .unwrap()
         .unwrap()
@@ -85,12 +89,12 @@ mod tests {
     fn bitmap_scan_follows_heap_growth_and_truncate() {
         Spi::run(
             "CREATE TABLE lite_growth (id int, body text);
-             CREATE INDEX lite_growth_idx ON lite_growth USING tin (body);
+             CREATE INDEX lite_growth_idx ON lite_growth USING plumb (body);
              SET LOCAL enable_seqscan = off;",
         )
         .unwrap();
         assert_eq!(
-            Spi::get_one::<i64>("SELECT count(*) FROM lite_growth WHERE body ==> 'beer'").unwrap(),
+            Spi::get_one::<i64>("SELECT count(*) FROM lite_growth WHERE body ~~> 'beer'").unwrap(),
             Some(0)
         );
         Spi::run(
@@ -101,7 +105,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            Spi::get_one::<i64>("SELECT count(*) FROM lite_growth WHERE body ==> 'beer'").unwrap(),
+            Spi::get_one::<i64>("SELECT count(*) FROM lite_growth WHERE body ~~> 'beer'").unwrap(),
             Some(8)
         );
         Spi::run(
@@ -110,7 +114,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            Spi::get_one::<i64>("SELECT count(*) FROM lite_growth WHERE body ==> 'beer'").unwrap(),
+            Spi::get_one::<i64>("SELECT count(*) FROM lite_growth WHERE body ~~> 'beer'").unwrap(),
             Some(1)
         );
     }
@@ -123,13 +127,13 @@ mod tests {
                (1, 'BEER', true), (2, 'wine', true),
                (3, 'BEER', false), (4, NULL, true);
              CREATE INDEX lite_partial_idx ON lite_partial
-               USING tin (lower(body)) WHERE active;
+               USING plumb (lower(body)) WHERE active;
              SET LOCAL enable_seqscan = off;",
         )
         .unwrap();
         let plan = Spi::get_one::<Json>(
             "EXPLAIN (FORMAT JSON)
-             SELECT id FROM lite_partial WHERE active AND lower(body) ==> 'beer'",
+             SELECT id FROM lite_partial WHERE active AND lower(body) ~~> 'beer'",
         )
         .unwrap()
         .unwrap()
@@ -142,7 +146,7 @@ mod tests {
         assert_eq!(
             Spi::get_one::<Vec<i32>>(
                 "SELECT array_agg(id ORDER BY id) FROM lite_partial
-                 WHERE active AND lower(body) ==> 'beer'"
+                 WHERE active AND lower(body) ~~> 'beer'"
             )
             .unwrap(),
             Some(vec![1])
@@ -151,7 +155,7 @@ mod tests {
         assert_eq!(
             Spi::get_one::<Vec<i32>>(
                 "SELECT array_agg(id ORDER BY id) FROM lite_partial
-                 WHERE active AND lower(body) ==> 'beer'"
+                 WHERE active AND lower(body) ~~> 'beer'"
             )
             .unwrap(),
             Some(vec![1, 3])
@@ -165,14 +169,14 @@ mod tests {
              INSERT INTO lite_union VALUES
                (1, 'beer', 'wine'), (2, 'wine', 'beer'),
                (3, 'beer', 'beer'), (4, 'wine', 'wine');
-             CREATE INDEX lite_union_title_idx ON lite_union USING tin (title);
-             CREATE INDEX lite_union_body_idx ON lite_union USING tin (body);
+             CREATE INDEX lite_union_title_idx ON lite_union USING plumb (title);
+             CREATE INDEX lite_union_body_idx ON lite_union USING plumb (body);
              SET LOCAL enable_seqscan = off;",
         )
         .unwrap();
         let plan = Spi::get_one::<Json>(
             "EXPLAIN (FORMAT JSON)
-             SELECT id FROM lite_union WHERE title ==> 'beer' OR body ==> 'beer'",
+             SELECT id FROM lite_union WHERE title ~~> 'beer' OR body ~~> 'beer'",
         )
         .unwrap()
         .unwrap()
@@ -181,7 +185,7 @@ mod tests {
         assert_eq!(
             Spi::get_one::<Vec<i32>>(
                 "SELECT array_agg(id ORDER BY id) FROM lite_union
-                 WHERE title ==> 'beer' OR body ==> 'beer'"
+                 WHERE title ~~> 'beer' OR body ~~> 'beer'"
             )
             .unwrap(),
             Some(vec![1, 2, 3])
@@ -193,27 +197,27 @@ mod tests {
         Spi::run(
             "CREATE TABLE lite_mvcc (id int, body text);
              INSERT INTO lite_mvcc VALUES (1, 'old term'), (2, 'keep term');
-             CREATE INDEX lite_mvcc_idx ON lite_mvcc USING tin (body);
+             CREATE INDEX lite_mvcc_idx ON lite_mvcc USING plumb (body);
              UPDATE lite_mvcc SET body = 'new term' WHERE id = 1;
              DELETE FROM lite_mvcc WHERE id = 2;
              SET LOCAL enable_seqscan = off;",
         )
         .unwrap();
         assert_eq!(
-            Spi::get_one::<i64>("SELECT count(*) FROM lite_mvcc WHERE body ==> 'old'").unwrap(),
+            Spi::get_one::<i64>("SELECT count(*) FROM lite_mvcc WHERE body ~~> 'old'").unwrap(),
             Some(0)
         );
         assert_eq!(
-            Spi::get_one::<i64>("SELECT count(*) FROM lite_mvcc WHERE body ==> 'new'").unwrap(),
+            Spi::get_one::<i64>("SELECT count(*) FROM lite_mvcc WHERE body ~~> 'new'").unwrap(),
             Some(1)
         );
         assert_eq!(
-            Spi::get_one::<i64>("SELECT count(*) FROM lite_mvcc WHERE body ==> 'keep'").unwrap(),
+            Spi::get_one::<i64>("SELECT count(*) FROM lite_mvcc WHERE body ~~> 'keep'").unwrap(),
             Some(0)
         );
         Spi::run("UPDATE lite_mvcc SET id = 3 WHERE id = 1").unwrap();
         assert_eq!(
-            Spi::get_one::<Vec<i32>>("SELECT array_agg(id) FROM lite_mvcc WHERE body ==> 'new'")
+            Spi::get_one::<Vec<i32>>("SELECT array_agg(id) FROM lite_mvcc WHERE body ~~> 'new'")
                 .unwrap(),
             Some(vec![3])
         );
@@ -225,12 +229,12 @@ mod tests {
             "CREATE TABLE lite_score (id int, body text);
              INSERT INTO lite_score VALUES
                (1, 'rare'), (2, 'rare rare rare'), (3, 'common');
-             CREATE INDEX lite_score_idx ON lite_score USING tin (body);",
+             CREATE INDEX lite_score_idx ON lite_score USING plumb (body);",
         )
         .unwrap();
         let ids = Spi::get_one::<Vec<i32>>(
-            "SELECT array_agg(id ORDER BY tin.full_score(ctid) DESC, id)
-             FROM lite_score WHERE body ==> 'rare'",
+            "SELECT array_agg(id ORDER BY plumb.full_score(ctid) DESC, id)
+             FROM lite_score WHERE body ~~> 'rare'",
         )
         .unwrap();
         assert_eq!(ids, Some(vec![2, 1]));
@@ -242,25 +246,25 @@ mod tests {
             "CREATE TABLE lite_score_helpers (id int, body text);
              INSERT INTO lite_score_helpers VALUES
                (1, 'common rare'), (2, 'common'), (3, 'common');
-             CREATE INDEX lite_score_helpers_idx ON lite_score_helpers USING tin (body)",
+             CREATE INDEX lite_score_helpers_idx ON lite_score_helpers USING plumb (body)",
         )
         .unwrap();
         let full_max = Spi::get_one::<f32>(
-            "SELECT max(tin.full_score(ctid))
-             FROM lite_score_helpers WHERE body ==> 'rare^1.0'",
+            "SELECT max(plumb.full_score(ctid))
+             FROM lite_score_helpers WHERE body ~~> 'rare^1.0'",
         )
         .unwrap()
         .unwrap();
         let reported = Spi::get_one::<f32>(
-            "SELECT tin.max_score(ctid)
-             FROM lite_score_helpers WHERE body ==> 'rare^1.0' LIMIT 1",
+            "SELECT plumb.max_score(ctid)
+             FROM lite_score_helpers WHERE body ~~> 'rare^1.0' LIMIT 1",
         )
         .unwrap()
         .unwrap();
         assert_eq!(reported, full_max);
         let inspected = Spi::get_one::<Vec<String>>(
             "SELECT array_agg(term ORDER BY term)
-             FROM tin.score_inspect('lite_score_helpers_idx', 'common OR rare', 0.5)",
+             FROM plumb.score_inspect('lite_score_helpers_idx', 'common OR rare', 0.5)",
         )
         .unwrap();
         assert_eq!(inspected, Some(vec!["rare".to_owned()]));
@@ -291,12 +295,12 @@ mod tests {
             Spi::run(&format!(
                 "CREATE TABLE lite_max_score_{name} (body text);
                  INSERT INTO lite_max_score_{name} VALUES ('{matching}'), ('{nonmatching}');
-                 CREATE INDEX ON lite_max_score_{name} USING tin (body);"
+                 CREATE INDEX ON lite_max_score_{name} USING plumb (body);"
             ))
             .unwrap();
             let (score, max) = Spi::get_two::<f32, f32>(&format!(
-                "SELECT tin.full_score(ctid), tin.max_score(ctid)
-                 FROM lite_max_score_{name} WHERE body ==> '{query}'"
+                "SELECT plumb.full_score(ctid), plumb.max_score(ctid)
+                 FROM lite_max_score_{name} WHERE body ~~> '{query}'"
             ))
             .unwrap();
             assert_eq!(max, score, "{name}");
@@ -311,16 +315,16 @@ mod tests {
                (1, 'I love fuji apples and juicy mangoes'),
                (2, 'Grape tasting notes from the orchard'),
                (3, 'The best juicy fuji apple in town');
-             CREATE INDEX lite_normalization_idx ON lite_normalization USING tin (body)",
+             CREATE INDEX lite_normalization_idx ON lite_normalization USING plumb (body)",
         )
         .unwrap();
         for expression in [
-            "tin.full_score(ctid) / tin.max_score(ctid)",
-            "1::real / tin.max_score(ctid) * tin.full_score(ctid)",
+            "plumb.full_score(ctid) / plumb.max_score(ctid)",
+            "1::real / plumb.max_score(ctid) * plumb.full_score(ctid)",
         ] {
             let sql = format!(
                 "SELECT {expression} FROM lite_normalization
-                 WHERE body ==> 'apple OR grape' AND tin.max_score(ctid) > 0 ORDER BY id"
+                 WHERE body ~~> 'apple OR grape' AND plumb.max_score(ctid) > 0 ORDER BY id"
             );
             let scores = Spi::connect(|client| {
                 client
@@ -346,15 +350,15 @@ mod tests {
              INSERT INTO lite_expression_score
                SELECT n, 'noise', n::text FROM generate_series(4, 30) AS n;
              CREATE INDEX lite_expression_score_idx ON lite_expression_score
-               USING tin (((s1 || ' '::text) || s2));",
+               USING plumb (((s1 || ' '::text) || s2));",
         )
         .unwrap();
         let rows = Spi::connect(|client| {
             client
                 .select(
-                    "SELECT id, tin.score(ctid) AS score
+                    "SELECT id, plumb.score(ctid) AS score
                      FROM lite_expression_score
-                     WHERE (s1 || ' ' || s2) ==> 'hello world 10'
+                     WHERE (s1 || ' ' || s2) ~~> 'hello world 10'
                      ORDER BY score DESC, id LIMIT 5",
                     None,
                     &[],
@@ -382,22 +386,22 @@ mod tests {
              INSERT INTO lite_partial_score
                SELECT n, 'wine', false FROM generate_series(5, 104) AS n;
              CREATE INDEX lite_partial_score_idx ON lite_partial_score
-               USING tin (body) WHERE active;
+               USING plumb (body) WHERE active;
              CREATE TABLE lite_partial_score_control AS
                SELECT id, body FROM lite_partial_score WHERE active;
              CREATE INDEX lite_partial_score_control_idx ON lite_partial_score_control
-               USING tin (body);",
+               USING plumb (body);",
         )
         .unwrap();
         let partial = Spi::get_one::<f32>(
-            "SELECT tin.full_score(ctid) FROM lite_partial_score
-             WHERE active AND body ==> 'beer'",
+            "SELECT plumb.full_score(ctid) FROM lite_partial_score
+             WHERE active AND body ~~> 'beer'",
         )
         .unwrap()
         .unwrap();
         let control = Spi::get_one::<f32>(
-            "SELECT tin.full_score(ctid) FROM lite_partial_score_control
-             WHERE body ==> 'beer'",
+            "SELECT plumb.full_score(ctid) FROM lite_partial_score_control
+             WHERE body ~~> 'beer'",
         )
         .unwrap()
         .unwrap();
@@ -408,15 +412,15 @@ mod tests {
         // must be elided at the default dense ratio, despite the excluded rows.
         assert_eq!(
             Spi::get_one::<i64>(
-                "SELECT count(*) FROM tin.score_inspect('lite_partial_score_idx', 'beer')"
+                "SELECT count(*) FROM plumb.score_inspect('lite_partial_score_idx', 'beer')"
             )
             .unwrap(),
             Some(0)
         );
         assert_eq!(
             Spi::get_one::<f32>(
-                "SELECT tin.score(ctid) FROM lite_partial_score
-                 WHERE active AND body ==> 'beer'"
+                "SELECT plumb.score(ctid) FROM lite_partial_score
+                 WHERE active AND body ~~> 'beer'"
             )
             .unwrap(),
             Some(0.0)
@@ -432,23 +436,23 @@ mod tests {
                (3, 'BEER BEER', false), (4, 'excluded', false),
                (5, 'excluded', NULL), (6, NULL, true);
              CREATE INDEX lite_partial_expression_idx ON lite_partial_expression
-               USING tin (lower(body)) WHERE active OR id = 3;
+               USING plumb (lower(body)) WHERE active OR id = 3;
              CREATE TABLE lite_partial_expression_control AS
                SELECT id, body FROM lite_partial_expression WHERE active OR id = 3;
              CREATE INDEX lite_partial_expression_control_idx
-               ON lite_partial_expression_control USING tin (lower(body));",
+               ON lite_partial_expression_control USING plumb (lower(body));",
         )
         .unwrap();
         let partial = Spi::get_one::<Vec<f32>>(
-            "SELECT array_agg(tin.full_score(ctid) ORDER BY id)
+            "SELECT array_agg(plumb.full_score(ctid) ORDER BY id)
              FROM lite_partial_expression
-             WHERE (active OR id = 3) AND lower(body) ==> 'beer'",
+             WHERE (active OR id = 3) AND lower(body) ~~> 'beer'",
         )
         .unwrap()
         .unwrap();
         let control = Spi::get_one::<Vec<f32>>(
-            "SELECT array_agg(tin.full_score(ctid) ORDER BY id)
-             FROM lite_partial_expression_control WHERE lower(body) ==> 'beer'",
+            "SELECT array_agg(plumb.full_score(ctid) ORDER BY id)
+             FROM lite_partial_expression_control WHERE lower(body) ~~> 'beer'",
         )
         .unwrap()
         .unwrap();
@@ -460,7 +464,7 @@ mod tests {
     fn highlighting_supports_explicit_and_implicit_queries() {
         assert_eq!(
             Spi::get_one::<String>(
-                "SELECT tin.highlight('Beer and wine', '[', ']', query => 'beer')"
+                "SELECT plumb.highlight('Beer and wine', '[', ']', query => 'beer')"
             )
             .unwrap(),
             Some("[Beer] and wine".into())
@@ -470,22 +474,22 @@ mod tests {
              INSERT INTO lite_highlight VALUES
                (1, 'Beer', 'and wine'), (2, 'cider', 'only');
              CREATE INDEX lite_highlight_idx ON lite_highlight
-               USING tin (((s1 || ' '::text) || s2));",
+               USING plumb (((s1 || ' '::text) || s2));",
         )
         .unwrap();
         assert_eq!(
             Spi::get_one::<String>(
-                "SELECT tin.highlight(s1 || ' ' || s2)
+                "SELECT plumb.highlight(s1 || ' ' || s2)
                  FROM lite_highlight
-                 WHERE (s1 || ' ' || s2) ==> 'beer'"
+                 WHERE (s1 || ' ' || s2) ~~> 'beer'"
             )
             .unwrap(),
             Some("<b>Beer</b> and wine".into())
         );
         let ansi = Spi::get_one::<String>(
-            "SELECT tin.highlight_ansi(s1 || ' ' || s2)
+            "SELECT plumb.highlight_ansi(s1 || ' ' || s2)
              FROM lite_highlight
-             WHERE (s1 || ' ' || s2) ==> 'beer'",
+             WHERE (s1 || ' ' || s2) ~~> 'beer'",
         )
         .unwrap()
         .unwrap();

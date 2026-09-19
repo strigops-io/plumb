@@ -14,6 +14,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 // The full license text is available in LICENSE.
+// Modified by Plumb contributors on 2026-09-20: independent Plumb SQL identity and operator isolation.
 use crate::bm25::{
     Bm25Overrides, DenseRatio, ScoreStopWords, ScoringTermInput, TermScorer, TermSetEdit,
     compile_scoring_terms, sum_scores_in_order,
@@ -55,13 +56,13 @@ thread_local! {
 }
 
 fn score_context_error(function: &str) -> ! {
-    pgrx::error!("{function} requires a tin index scan and cannot be used in this query context")
+    pgrx::error!("{function} requires a plumb index scan and cannot be used in this query context")
 }
 
 #[pg_extern(immutable, parallel_unsafe)]
 fn full_score(ctid: pg_sys::ItemPointerData) -> Option<f32> {
     let _ = ctid;
-    score_context_error("tin.full_score()")
+    score_context_error("plumb.full_score()")
 }
 
 #[pg_extern(name = "full_score", immutable, parallel_unsafe)]
@@ -71,7 +72,7 @@ fn full_score_with_bm25(
     b: Option<f32>,
 ) -> Option<f32> {
     let _ = (ctid, k1, b);
-    score_context_error("tin.full_score()")
+    score_context_error("plumb.full_score()")
 }
 
 #[pg_extern(immutable, parallel_unsafe)]
@@ -84,13 +85,13 @@ fn score(
     term_replace: default!(Option<Vec<String>>, "NULL"),
 ) -> Option<f32> {
     let _ = (ctid, dense_ratio, k1, b, term_add, term_replace);
-    score_context_error("tin.score()")
+    score_context_error("plumb.score()")
 }
 
 #[pg_extern(immutable, parallel_unsafe)]
 fn max_score(ctid: pg_sys::ItemPointerData) -> Option<f32> {
     let _ = ctid;
-    score_context_error("tin.max_score()")
+    score_context_error("plumb.max_score()")
 }
 
 fn bits(value: Option<f32>) -> Option<u32> {
@@ -155,7 +156,7 @@ fn build_corpus(
         )
     };
     if unsafe { pg_sys::IndexGetRelation(index.oid(), false) } != heap_oid {
-        pgrx::error!("tin score index no longer belongs to the scored relation");
+        pgrx::error!("plumb score index no longer belongs to the scored relation");
     }
     let tokenizer = unsafe { crate::options::tokenizer(index.as_ptr()) };
     let defaults = unsafe { crate::options::bm25(index.as_ptr()) };
@@ -163,17 +164,17 @@ fn build_corpus(
     let params = Bm25Overrides { k1, b }
         .resolve(defaults)
         .checked()
-        .unwrap_or_else(|error| pgrx::error!("tin score parameters: {error}"));
+        .unwrap_or_else(|error| pgrx::error!("plumb score parameters: {error}"));
     let dense = DenseRatio::new(Some(f32::from_bits(key.dense)));
     if !key.full && !dense.is_valid() {
         pgrx::error!("dense_ratio must be finite and non-negative");
     }
     let query = parse_tinql_to_query(&key.query, &tokenizer)
-        .unwrap_or_else(|error| pgrx::error!("TIN score query error: {error}"));
+        .unwrap_or_else(|error| pgrx::error!("Plumb score query error: {error}"));
     let mut inputs = Vec::new();
     collect_score_terms(&query, 1.0, false, &mut inputs);
     let edit = TermSetEdit::from_bound_arrays(term_add, term_replace)
-        .unwrap_or_else(|error| pgrx::error!("tin.score(): {error}"))
+        .unwrap_or_else(|error| pgrx::error!("plumb.score(): {error}"))
         .analyzed_with(|text| {
             tokenizer
                 .tokenize(text)
@@ -206,7 +207,7 @@ fn build_corpus(
         }
         let scorer =
             TermScorer::from_statistics(total_docs, df, term.boost(), params, average_length)
-                .unwrap_or_else(|error| pgrx::error!("tin score parameters: {error}"));
+                .unwrap_or_else(|error| pgrx::error!("plumb score parameters: {error}"));
         scorers.push((term.text().to_owned(), scorer));
     }
     let mut by_document = FxHashMap::default();
@@ -221,7 +222,7 @@ fn build_corpus(
             }
         }));
         let matched = evaluate(&query, &tokenize_doc(&document, &tokenizer))
-            .unwrap_or_else(|error| pgrx::error!("tin score query evaluation failed: {error}"))
+            .unwrap_or_else(|error| pgrx::error!("plumb score query evaluation failed: {error}"))
             .matched;
         if matched {
             max = max.max(score);
@@ -240,7 +241,7 @@ fn load_documents(heap_oid: pg_sys::Oid, index_oid: pg_sys::Oid) -> Vec<String> 
         let relname = pg_sys::get_rel_name(heap_oid);
         let namespace = pg_sys::get_namespace_name(pg_sys::get_rel_namespace(heap_oid));
         if relname.is_null() || namespace.is_null() {
-            pgrx::error!("tin score relation no longer exists");
+            pgrx::error!("plumb score relation no longer exists");
         }
         let qualified = pg_sys::quote_qualified_identifier(namespace, relname);
         let index_sql = format!(
@@ -256,9 +257,9 @@ fn load_documents(heap_oid: pg_sys::Oid, index_oid: pg_sys::Oid) -> Vec<String> 
             heap_oid.to_u32(),
         );
         let (expression, predicate) = Spi::get_two::<String, String>(&index_sql)
-            .unwrap_or_else(|error| pgrx::error!("tin score index lookup failed: {error}"));
+            .unwrap_or_else(|error| pgrx::error!("plumb score index lookup failed: {error}"));
         let expression = expression
-            .unwrap_or_else(|| pgrx::error!("tin score index expression no longer exists"));
+            .unwrap_or_else(|| pgrx::error!("plumb score index expression no longer exists"));
         let predicate = predicate
             .map(|predicate| format!(" AND ({predicate})"))
             .unwrap_or_default();
@@ -269,11 +270,11 @@ fn load_documents(heap_oid: pg_sys::Oid, index_oid: pg_sys::Oid) -> Vec<String> 
         Spi::connect(|client| {
             client
                 .select(&sql, None, &[])
-                .unwrap_or_else(|error| pgrx::error!("tin score corpus scan failed: {error}"))
+                .unwrap_or_else(|error| pgrx::error!("plumb score corpus scan failed: {error}"))
                 .map(|row| {
                     row.get::<String>(1)
                         .unwrap_or_else(|error| {
-                            pgrx::error!("tin score corpus row failed: {error}")
+                            pgrx::error!("plumb score corpus row failed: {error}")
                         })
                         .expect("corpus query excludes null documents")
                 })
@@ -353,10 +354,10 @@ fn score_inspect(
     let (Some(index), Some(query)) = (index, query) else {
         return TableIterator::new(Vec::new());
     };
-    let tin_name = CString::new("tin").expect("static access method name is valid");
-    let tin_am = unsafe { pg_sys::get_index_am_oid(tin_name.as_ptr(), false) };
-    if unsafe { (*(*index.as_ptr()).rd_rel).relam } != tin_am {
-        pgrx::error!("tin.score_inspect() requires a tin index");
+    let plumb_name = CString::new("plumb").expect("static access method name is valid");
+    let plumb_am = unsafe { pg_sys::get_index_am_oid(plumb_name.as_ptr(), false) };
+    if unsafe { (*(*index.as_ptr()).rd_rel).relam } != plumb_am {
+        pgrx::error!("plumb.score_inspect() requires a plumb index");
     }
     let unwrap = |which: &str, values: Option<Vec<Option<String>>>| {
         values.map(|values| {
@@ -364,7 +365,9 @@ fn score_inspect(
                 .into_iter()
                 .map(|value| {
                     value.unwrap_or_else(|| {
-                        pgrx::error!("tin.score_inspect() {which} array elements must not be NULL")
+                        pgrx::error!(
+                            "plumb.score_inspect() {which} array elements must not be NULL"
+                        )
                     })
                 })
                 .collect::<Vec<_>>()
@@ -385,14 +388,14 @@ fn score_inspect(
     }
     let tokenizer = unsafe { crate::options::tokenizer(index.as_ptr()) };
     let parsed = parse_tinql_to_query(query, &tokenizer)
-        .unwrap_or_else(|error| pgrx::error!("tin.score_inspect() query error: {error}"));
+        .unwrap_or_else(|error| pgrx::error!("plumb.score_inspect() query error: {error}"));
     let mut inputs = Vec::new();
     collect_score_terms(&parsed, 1.0, false, &mut inputs);
     let edit = TermSetEdit::from_bound_arrays(
         unwrap("term_add", term_add),
         unwrap("term_replace", term_replace),
     )
-    .unwrap_or_else(|error| pgrx::error!("tin.score_inspect(): {error}"))
+    .unwrap_or_else(|error| pgrx::error!("plumb.score_inspect(): {error}"))
     .analyzed_with(|text| {
         tokenizer
             .tokenize(text)
@@ -424,6 +427,7 @@ fn score_inspect(
 }
 
 struct QualBinding {
+    operator_oid: pg_sys::Oid,
     matches: Vec<(*mut pg_sys::Node, *mut pg_sys::Node)>,
 }
 
@@ -435,9 +439,8 @@ unsafe extern "C-unwind" fn find_qual(node: *mut pg_sys::Node, context: *mut c_v
     let binding = unsafe { &mut *context.cast::<QualBinding>() };
     if unsafe { (*node).type_ } == pg_sys::NodeTag::T_OpExpr {
         let op = node.cast::<pg_sys::OpExpr>();
-        let name = unsafe { pg_sys::get_opname((*op).opno) };
-        if !name.is_null()
-            && unsafe { CStr::from_ptr(name) }.to_bytes() == b"==>"
+        if binding.operator_oid != pg_sys::InvalidOid
+            && unsafe { (*op).opno } == binding.operator_oid
             && unsafe { pg_sys::list_length((*op).args) } == 2
         {
             let left = unsafe { pg_sys::list_nth((*op).args, 0).cast::<pg_sys::Node>() };
@@ -450,13 +453,13 @@ unsafe extern "C-unwind" fn find_qual(node: *mut pg_sys::Node, context: *mut c_v
     unsafe { pg_sys::expression_tree_walker(node, Some(find_qual), context) }
 }
 
-pub(crate) unsafe fn find_matching_tin_index(
+pub(crate) unsafe fn find_matching_plumb_index(
     heap_oid: pg_sys::Oid,
     query_varno: i32,
     operand: *mut pg_sys::Node,
 ) -> Option<pg_sys::Oid> {
-    let tin_name = CString::new("tin").expect("static access method name is valid");
-    let tin_am = unsafe { pg_sys::get_index_am_oid(tin_name.as_ptr(), false) };
+    let plumb_name = CString::new("plumb").expect("static access method name is valid");
+    let plumb_am = unsafe { pg_sys::get_index_am_oid(plumb_name.as_ptr(), false) };
     let normalized = unsafe { pg_sys::copyObjectImpl(operand.cast()).cast::<pg_sys::Node>() };
     unsafe { pg_sys::ChangeVarNodes(normalized, query_varno, 1, 0) };
     let normalized = unsafe { pg_sys::strip_implicit_coercions(normalized) };
@@ -466,9 +469,9 @@ pub(crate) unsafe fn find_matching_tin_index(
     for index_oid in indexes.iter_oid() {
         let index = unsafe { pg_sys::index_open(index_oid, pg_sys::AccessShareLock as _) };
         let metadata = unsafe { &*(*index).rd_index };
-        let is_tin = unsafe { (*(*index).rd_rel).relam } == tin_am;
+        let is_plumb = unsafe { (*(*index).rd_rel).relam } == plumb_am;
         let suitable =
-            is_tin && metadata.indisvalid && metadata.indisready && metadata.indnkeyatts == 1;
+            is_plumb && metadata.indisvalid && metadata.indisready && metadata.indnkeyatts == 1;
         let matches = if suitable {
             let key = unsafe { *metadata.indkey.values.as_ptr() };
             if key > 0 {
@@ -578,6 +581,7 @@ fn score_support(request: Internal) -> Internal {
         }
         let parse = (*request.root).parse;
         let mut binding = QualBinding {
+            operator_oid: crate::operator::search_operator_oid(),
             matches: Vec::new(),
         };
         let quals = (*(*parse).jointree).quals.cast::<pg_sys::Node>();
@@ -589,7 +593,7 @@ fn score_support(request: Internal) -> Internal {
         }
         let Some((document, first_query, index_oid)) =
             binding.matches.iter().find_map(|&(document, query)| {
-                find_matching_tin_index((*rte).relid, ctid.varno, document)
+                find_matching_plumb_index((*rte).relid, ctid.varno, document)
                     .map(|index_oid| (document, query, index_oid))
             })
         else {
@@ -739,7 +743,7 @@ unsafe fn make_null_const(type_oid: pg_sys::Oid) -> *mut pg_sys::Const {
 }
 
 unsafe fn lookup_score_bound() -> pg_sys::Oid {
-    let name = CString::new("tin.score_bound").unwrap();
+    let name = CString::new("plumb.score_bound").unwrap();
     let names = unsafe { pg_sys::stringToQualifiedNameList(name.as_ptr(), std::ptr::null_mut()) };
     let types = [
         pg_sys::TEXTOID,

@@ -14,11 +14,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 // The full license text is available in LICENSE.
+// Modified by Plumb contributors on 2026-09-20: independent Plumb SQL identity and operator isolation.
 #[allow(unused_imports)]
 use crate::am::amhandler;
 use pgrx::{extension_sql, pg_extern};
 use tinql::runtime::{evaluate, lower::lower, subtokenize::sub_tokenize, tokenize_doc};
 use tokenizer::presets::default_pipeline;
+
+/// Resolve the canonical operator afresh for each planner binding. Never cache an
+/// OID across catalog changes or consult search_path / an operator's name alone.
+pub(crate) unsafe fn search_operator_oid() -> pgrx::pg_sys::Oid {
+    use pgrx::{PgList, pg_sys};
+    unsafe {
+        let mut names = PgList::<pg_sys::String>::new();
+        names.push(pg_sys::makeString(pg_sys::pstrdup(c"pg_catalog".as_ptr())));
+        names.push(pg_sys::makeString(pg_sys::pstrdup(c"~~>".as_ptr())));
+        pg_sys::OpernameGetOprid(names.as_ptr(), pg_sys::TEXTOID, pg_sys::TEXTOID)
+    }
+}
 
 fn evaluate_text(document: &str, query_text: &str) -> Result<bool, String> {
     let pipeline = default_pipeline();
@@ -32,25 +45,25 @@ fn evaluate_text(document: &str, query_text: &str) -> Result<bool, String> {
 }
 
 #[pg_extern(immutable, parallel_safe)]
-pub fn tin_text_cmpfunc(document: &str, query: &str) -> bool {
+pub fn plumb_text_cmpfunc(document: &str, query: &str) -> bool {
     evaluate_text(document, query)
-        .unwrap_or_else(|error| pgrx::error!("invalid ==> query: {error}"))
+        .unwrap_or_else(|error| pgrx::error!("invalid ~~> query: {error}"))
 }
 
 extension_sql!(
     r#"
-CREATE OPERATOR pg_catalog.==> (
-    PROCEDURE = @extschema@.tin_text_cmpfunc,
+CREATE OPERATOR pg_catalog.~~> (
+    PROCEDURE = @extschema@.plumb_text_cmpfunc,
     LEFTARG = pg_catalog.text,
     RIGHTARG = pg_catalog.text
 );
 
-CREATE OPERATOR CLASS @extschema@.tin_text_ops DEFAULT FOR TYPE pg_catalog.text USING tin AS
-    OPERATOR 1 pg_catalog.==>(pg_catalog.text, pg_catalog.text),
+CREATE OPERATOR CLASS @extschema@.plumb_text_ops DEFAULT FOR TYPE pg_catalog.text USING plumb AS
+    OPERATOR 1 pg_catalog.~~>(pg_catalog.text, pg_catalog.text),
     STORAGE pg_catalog.text;
 "#,
-    name = "tin_text_operator",
-    requires = [amhandler, tin_text_cmpfunc]
+    name = "plumb_text_operator",
+    requires = [amhandler, plumb_text_cmpfunc]
 );
 
 #[cfg(test)]

@@ -14,6 +14,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 // The full license text is available in LICENSE.
+// Modified by Plumb contributors on 2026-09-20: independent Plumb SQL identity and operator isolation.
 use pgrx::{pg_guard, pg_sys};
 use std::ffi::CStr;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -203,7 +204,7 @@ pub fn init() {
         pg_sys::add_string_reloption(
             kind,
             c"score_stop_words".as_ptr(),
-            c"Comma-separated analyzed terms omitted by tin.score".as_ptr(),
+            c"Comma-separated analyzed terms omitted by plumb.score".as_ptr(),
             std::ptr::null(),
             None,
             lock,

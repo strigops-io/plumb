@@ -1,0 +1,33 @@
+Plumb — independent proof-of-concept fork
+
+Plumb is an independent fork of PlanetScale Lead:
+https://github.com/planetscale/lead
+Fork repository: https://github.com/strigops-io/plumb
+Initial Lead-derived baseline: bd95c7e51b6afce81396790852ee2f2c169570ad
+Modified since 2026-09-20 (Pacific/Auckland).
+
+Licensed under GNU Affero General Public License, version 3 or (at your option)
+any later version (AGPL-3.0-or-later). The full license is in LICENSE.
+Original PlanetScale copyright, license and no-warranty notices are preserved in
+derived source files. New Plumb code is licensed under AGPL-3.0-or-later.
+
+Plumb is not affiliated with, endorsed by, or supported by PlanetScale.
+PlanetScale, Lead, and TIN are names used by PlanetScale. References to these
+names identify upstream provenance and compatibility targets, not endorsement
+or a grant of trademark rights. Report Plumb bugs to strigops-io/plumb, not to
+PlanetScale.
+
+Modifications in this investigation include:
+- independent plumb package/library/control/schema/access method and ~~> operator;
+- planner binding isolation for Plumb scoring and highlighting;
+- identity and public-Lead coexistence tests;
+- scalar CTID postings with 256-page grouping and finite-set operations;
+- development-dataset baseline tooling, CI changes and investigation documentation.
+
+The inherited language crates retain their original authorship and version metadata.
+Modified inherited Rust files additionally record dated modification notices.
+The Plumb extension has its own 0.1.0 version and contributor metadata.
+
+This notice does not replace or add restrictions to LICENSE. There is no warranty;
+see LICENSE sections 15 and 16. Redistributors and network operators must satisfy
+applicable Corresponding Source and notice obligations; see docs/license-compliance.md.

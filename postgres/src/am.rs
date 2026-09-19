@@ -14,15 +14,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 // The full license text is available in LICENSE.
+// Modified by Plumb contributors on 2026-09-20: independent Plumb SQL identity and operator isolation.
 use pgrx::{PgBox, pg_extern, pg_guard, pg_sys};
 use std::ffi::c_void;
 
 #[pg_extern(sql = "
-    CREATE OR REPLACE FUNCTION @extschema@.amhandler(internal)
+    CREATE FUNCTION @extschema@.amhandler(internal)
         RETURNS index_am_handler
         PARALLEL SAFE IMMUTABLE STRICT
         LANGUAGE c AS 'MODULE_PATHNAME', '@FUNCTION_NAME@';
-    CREATE ACCESS METHOD tin TYPE INDEX HANDLER @extschema@.amhandler;
+    CREATE ACCESS METHOD plumb TYPE INDEX HANDLER @extschema@.amhandler;
 ")]
 pub(crate) fn amhandler(_fcinfo: pg_sys::FunctionCallInfo) -> PgBox<pg_sys::IndexAmRoutine> {
     let mut routine =
