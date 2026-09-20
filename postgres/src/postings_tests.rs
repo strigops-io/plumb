@@ -1014,4 +1014,12 @@ mod tests {
         Spi::run("CREATE TABLE p_wrong(id int); CREATE INDEX p_wrong_idx ON p_wrong(id)").unwrap();
         let _ = Spi::get_one::<pgrx::JsonB>("SELECT plumb.index_stats('p_wrong_idx')");
     }
+
+    #[pg_test]
+    fn pg_postings_supports_2gb_index_capacity() {
+        Spi::run("CREATE TABLE p_large(id int, body text);
+            CREATE INDEX p_large_idx ON p_large USING plumb(body);
+            SELECT plumb.index_stats('p_large_idx'::regclass);").unwrap();
+        assert_eq!(crate::storage::MAX_INDEX_BYTES, 2048 * 1024 * 1024);
+    }
 }

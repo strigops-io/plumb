@@ -17,9 +17,9 @@ use pgrx::pg_sys;
 use std::{mem::offset_of, ptr, slice};
 
 pub const MAX_SEGMENT_BYTES: usize = 16 * 1024 * 1024;
-pub const MAX_INDEX_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_INDEX_BYTES: usize = 2048 * 1024 * 1024;
 pub const MAX_SEGMENTS: u32 = 65_536;
-const MAX_PHYSICAL_BYTES: usize = 256 * 1024 * 1024;
+const MAX_PHYSICAL_BYTES: usize = 4096 * 1024 * 1024;
 const BLOCK_SIZE: usize = pg_sys::BLCKSZ as usize;
 const MAX_BLOCKS: u32 = (MAX_PHYSICAL_BYTES / BLOCK_SIZE) as u32;
 // PostgreSQL's SizeOfPageHeaderData is offsetof(PageHeaderData, pd_linp).
