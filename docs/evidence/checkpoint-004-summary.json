@@ -1,0 +1,255 @@
+{
+  "checkpoint": "004-default-engine-merge",
+  "postgresql": "17.10",
+  "rust": "1.96.0",
+  "pgrx": "0.19.1",
+  "profile": "release SQL experiments",
+  "growth": [
+    {
+      "label": "load timing",
+      "detail": {
+        "rows": 200000,
+        "milliseconds": 296.44,
+        "logical_term_ctid_pairs": 1000201
+      }
+    },
+    {
+      "label": "build timing",
+      "detail": {
+        "milliseconds": 202.367
+      }
+    },
+    {
+      "label": "before merge stats",
+      "detail": {
+        "storage": "postings_v1",
+        "segments": 16,
+        "payload_bytes": 2032885,
+        "format_version": 1,
+        "relation_blocks": 261
+      }
+    },
+    {
+      "label": "merge pair-cap refusal",
+      "detail": {
+        "after": {
+          "storage": "postings_v1",
+          "segments": 16,
+          "payload_bytes": 2032885,
+          "format_version": 1,
+          "relation_blocks": 261
+        },
+        "before": {
+          "storage": "postings_v1",
+          "segments": 16,
+          "payload_bytes": 2032885,
+          "format_version": 1,
+          "relation_blocks": 261
+        },
+        "message": "plumb postings merge transform failed: postings_v1 frame: posting count exceeds the limit",
+        "sqlstate": "XX000",
+        "milliseconds": 14.695
+      }
+    },
+    {
+      "rows": 200,
+      "label": "growth rare: beacon",
+      "seq_ms": 1072.826,
+      "index_ms": 17.454,
+      "exact_blocks": 200,
+      "lossy_blocks": 0
+    }
+  ],
+  "example_merge": {
+    "after": {
+      "segments": 1,
+      "payload_bytes": 546,
+      "format_version": 1,
+      "relation_blocks": 62
+    },
+    "before": {
+      "segments": 60,
+      "payload_bytes": 13020,
+      "format_version": 1,
+      "relation_blocks": 61
+    },
+    "changed": true
+  },
+  "competing_merge_results": [
+    {
+      "after": {
+        "segments": 1,
+        "payload_bytes": 907,
+        "format_version": 1,
+        "relation_blocks": 80
+      },
+      "before": {
+        "segments": 9,
+        "payload_bytes": 2568,
+        "format_version": 1,
+        "relation_blocks": 79
+      },
+      "changed": true
+    },
+    {
+      "after": {
+        "segments": 1,
+        "payload_bytes": 907,
+        "format_version": 1,
+        "relation_blocks": 80
+      },
+      "before": {
+        "segments": 1,
+        "payload_bytes": 907,
+        "format_version": 1,
+        "relation_blocks": 80
+      },
+      "changed": false
+    }
+  ],
+  "ddl_lock_order": {
+    "blocked_activity": [
+      {
+        "pid": 45516,
+        "state": "active",
+        "xid": null,
+        "wait_event_type": "Lock",
+        "wait_event": "relation",
+        "query": "SELECT plumb.merge_index(16495::oid::regclass);",
+        "xact_start": "2026-09-20T12:43:46.597071+12:00",
+        "query_start": "2026-09-20T12:43:46.597071+12:00"
+      }
+    ],
+    "blocked_relation_locks": [
+      {
+        "relation": "16488",
+        "mode": "AccessShareLock",
+        "granted": false
+      }
+    ],
+    "truncate_and_merge_seconds": 0.007335165000768029,
+    "merge_result": {
+      "after": {
+        "segments": 0,
+        "payload_bytes": 0,
+        "format_version": 1,
+        "relation_blocks": 1
+      },
+      "before": {
+        "segments": 0,
+        "payload_bytes": 0,
+        "format_version": 1,
+        "relation_blocks": 1
+      },
+      "changed": false
+    },
+    "after": {
+      "storage": "postings_v1",
+      "segments": 2,
+      "payload_bytes": 240,
+      "format_version": 1,
+      "relation_blocks": 3
+    }
+  },
+  "final_fixture": {
+    "stats_before": {
+      "docs": {
+        "storage": "postings_v1",
+        "segments": 1,
+        "payload_bytes": 907,
+        "format_version": 1,
+        "relation_blocks": 80
+      },
+      "ddl": {
+        "storage": "postings_v1",
+        "segments": 2,
+        "payload_bytes": 240,
+        "format_version": 1,
+        "relation_blocks": 3
+      }
+    },
+    "stats_after": {
+      "docs": {
+        "storage": "postings_v1",
+        "segments": 1,
+        "payload_bytes": 907,
+        "format_version": 1,
+        "relation_blocks": 80
+      },
+      "ddl": {
+        "storage": "postings_v1",
+        "segments": 2,
+        "payload_bytes": 240,
+        "format_version": 1,
+        "relation_blocks": 3
+      }
+    },
+    "docs_count": 55,
+    "ddl_count": 2,
+    "counts": {
+      "oldterm": 25,
+      "newterm": 20,
+      "committedmarker": 5,
+      "abortedmarker": 0,
+      "continuedmarker": 5,
+      "sharedterm": 55
+    }
+  },
+  "before_restart": {
+    "fsync": "on",
+    "growth": {
+      "storage": "postings_v1",
+      "segments": 16,
+      "payload_bytes": 2032885,
+      "format_version": 1,
+      "relation_blocks": 261
+    },
+    "merged": {
+      "storage": "postings_v1",
+      "segments": 1,
+      "payload_bytes": 907,
+      "format_version": 1,
+      "relation_blocks": 80
+    },
+    "wal_lsn": "0/650AD30",
+    "checksums": "on",
+    "full_page_writes": "on"
+  },
+  "after_restart": {
+    "growth": {
+      "storage": "postings_v1",
+      "segments": 16,
+      "payload_bytes": 2032885,
+      "format_version": 1,
+      "relation_blocks": 261
+    },
+    "merged": {
+      "storage": "postings_v1",
+      "segments": 1,
+      "payload_bytes": 907,
+      "format_version": 1,
+      "relation_blocks": 80
+    }
+  },
+  "checks": {
+    "extension": 109,
+    "extension_in_postgresql": 58,
+    "pure_rust": 377,
+    "postings_release": 32,
+    "default_demo": 48,
+    "growth": 47,
+    "mutation": 346,
+    "edges": 16,
+    "coexistence": 54,
+    "post_restart_default_demo": 48,
+    "post_restart_growth_and_mutation": 40
+  },
+  "warnings": [
+    "Not production ready",
+    "Synthetic single-run timings",
+    "Merge retains old pages and increases physical storage",
+    "Large index can exceed all-segments merge budget while remaining queryable",
+    "No publication-boundary crash campaign or physical-cap stress",
+    "PG18 compile only; no PG18 or ARM runtime"
+  ]
+}

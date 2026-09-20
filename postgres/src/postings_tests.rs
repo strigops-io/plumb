@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Added by Plumb contributors on 2026-09-20: experimental postings AM regressions.
+// Modified by Plumb contributors on 2026-09-20: default transition, batched build, and merge regressions.
 #[pgrx::pg_schema]
 mod tests {
     use pgrx::prelude::*;
@@ -13,7 +14,7 @@ mod tests {
     fn setup() {
         Spi::run("CREATE TABLE p_docs(id int, body text) WITH (fillfactor=60);
             INSERT INTO p_docs VALUES (1,'craft beer'),(2,'wine'),(3,'beer festival'),(4,NULL),(5,'...');
-            CREATE INDEX p_docs_idx ON p_docs USING plumb(body) WITH(storage='postings_v1');
+            CREATE INDEX p_docs_idx ON p_docs USING plumb(body);
             SET LOCAL enable_seqscan=off;").unwrap();
     }
     fn segments() -> i64 {
@@ -157,7 +158,7 @@ mod tests {
     fn postings_heap_toggle_rejects_scan_without_reindex() {
         Spi::run(
             "CREATE TABLE p_legacy(body text); INSERT INTO p_legacy VALUES('beer');
-            CREATE INDEX p_legacy_idx ON p_legacy USING plumb(body);
+            CREATE INDEX p_legacy_idx ON p_legacy USING plumb(body) WITH(storage='heap');
             ALTER INDEX p_legacy_idx SET(storage='postings_v1'); SET LOCAL enable_seqscan=off;",
         )
         .unwrap();
@@ -170,7 +171,7 @@ mod tests {
     fn postings_heap_toggle_rejects_insert_without_reindex() {
         Spi::run(
             "CREATE TABLE p_legacy_write(body text); INSERT INTO p_legacy_write VALUES('beer');
-            CREATE INDEX p_legacy_write_idx ON p_legacy_write USING plumb(body);
+            CREATE INDEX p_legacy_write_idx ON p_legacy_write USING plumb(body) WITH(storage='heap');
             ALTER INDEX p_legacy_write_idx SET(storage='postings_v1');
             INSERT INTO p_legacy_write VALUES('wine');",
         )
@@ -181,7 +182,7 @@ mod tests {
         error = "postings_v1 supports only the default analyzer; restore default tokenizer options and REINDEX"
     )]
     fn postings_rejects_nondefault_analyzer_build() {
-        Spi::run("CREATE TABLE p_analyzer(body text); CREATE INDEX p_analyzer_idx ON p_analyzer USING plumb(body) WITH(storage='postings_v1',tokenizer='whitespace');").unwrap();
+        Spi::run("CREATE TABLE p_analyzer(body text); CREATE INDEX p_analyzer_idx ON p_analyzer USING plumb(body) WITH(tokenizer='whitespace');").unwrap();
     }
 
     #[pg_test(
@@ -205,14 +206,14 @@ mod tests {
         error = "postings_v1 requires a permanent heap; temporary/unlogged relations are unsupported"
     )]
     fn postings_rejects_temporary_heap() {
-        Spi::run("CREATE TEMP TABLE p_temp(body text); CREATE INDEX p_temp_idx ON p_temp USING plumb(body) WITH(storage='postings_v1');").unwrap();
+        Spi::run("CREATE TEMP TABLE p_temp(body text); CREATE INDEX p_temp_idx ON p_temp USING plumb(body);").unwrap();
     }
 
     #[pg_test(
         error = "postings_v1 requires a permanent heap; temporary/unlogged relations are unsupported"
     )]
     fn postings_rejects_unlogged_heap() {
-        Spi::run("CREATE UNLOGGED TABLE p_unlogged(body text); CREATE INDEX p_unlogged_idx ON p_unlogged USING plumb(body) WITH(storage='postings_v1');").unwrap();
+        Spi::run("CREATE UNLOGGED TABLE p_unlogged(body text); CREATE INDEX p_unlogged_idx ON p_unlogged USING plumb(body);").unwrap();
     }
 
     #[pg_test]
@@ -355,7 +356,7 @@ mod tests {
              CREATE TABLE p_heap_inequality(body text);
              INSERT INTO p_heap_inequality VALUES ('beer'),('wine');
              CREATE INDEX p_heap_inequality_idx ON p_heap_inequality
-                USING plumb(body p_heap_inequality_ops);
+                USING plumb(body p_heap_inequality_ops) WITH(storage='heap');
              INSERT INTO p_heap_inequality VALUES ('craft beer');
              SET LOCAL enable_seqscan=off;",
         )
@@ -365,6 +366,364 @@ mod tests {
                 .unwrap(),
             Some(2)
         );
+    }
+
+    #[pg_test]
+    fn default_storage_with_unrelated_reloptions_is_postings() {
+        setup();
+        Spi::run(
+            "DROP INDEX p_docs_idx;
+            CREATE INDEX p_docs_idx ON p_docs USING plumb(body)
+                WITH(initial_segment_count=8,k1=2,b=0.5);",
+        )
+        .unwrap();
+        assert_eq!(ids("beer"), vec![1, 3]);
+        assert_eq!(segments(), 1);
+        assert_eq!(
+            Spi::get_one::<i32>("SELECT (plumb.index_stats('p_docs_idx')->>'format_version')::int")
+                .unwrap(),
+            Some(1)
+        );
+        let plan = Spi::get_one::<pgrx::Json>(
+            "EXPLAIN (ANALYZE,FORMAT JSON) SELECT * FROM p_docs WHERE body ~~> 'beer'",
+        )
+        .unwrap()
+        .unwrap()
+        .0;
+        assert_eq!(plan[0]["Plan"]["Lossy Heap Blocks"], 0);
+        assert_eq!(plan[0]["Plan"]["Plans"][0]["Actual Rows"], 2);
+    }
+
+    #[pg_test]
+    fn explicit_heap_keeps_temporary_and_analyzer_compatibility() {
+        Spi::run(
+            "CREATE TEMP TABLE p_heap_compat(body text);
+            INSERT INTO p_heap_compat VALUES ('beer'),('wine');
+            CREATE INDEX p_heap_compat_idx ON p_heap_compat USING plumb(body)
+                WITH(storage='heap',tokenizer='whitespace');
+            INSERT INTO p_heap_compat VALUES ('craft beer');
+            SET LOCAL enable_seqscan=off;",
+        )
+        .unwrap();
+        assert_eq!(
+            Spi::get_one::<i64>("SELECT count(*) FROM p_heap_compat WHERE body ~~> 'beer'")
+                .unwrap(),
+            Some(2)
+        );
+        assert_eq!(
+            Spi::get_one::<String>("SELECT plumb.index_stats('p_heap_compat_idx')->>'storage'")
+                .unwrap()
+                .as_deref(),
+            Some("heap")
+        );
+    }
+
+    #[pg_test(
+        error = "postings_v1 metadata is missing; ALTER INDEX cannot convert a heap-baseline index; REINDEX is required"
+    )]
+    fn default_rejects_legacy_zero_page_scan_without_storage_option() {
+        Spi::run(
+            "CREATE TABLE p_old_default(body text);
+            INSERT INTO p_old_default VALUES ('beer');
+            CREATE INDEX p_old_default_idx ON p_old_default USING plumb(body) WITH(storage='heap');
+            ALTER INDEX p_old_default_idx RESET(storage);
+            SET LOCAL enable_seqscan=off;",
+        )
+        .unwrap();
+        let _ = Spi::get_one::<i64>("SELECT count(*) FROM p_old_default WHERE body ~~> 'beer'");
+    }
+
+    #[pg_test(
+        error = "postings_v1 metadata is missing; ALTER INDEX cannot convert a heap-baseline index; REINDEX is required"
+    )]
+    fn default_rejects_legacy_zero_page_insert_without_storage_option() {
+        Spi::run("CREATE TABLE p_old_default_write(body text);
+            CREATE INDEX p_old_default_write_idx ON p_old_default_write USING plumb(body) WITH(storage='heap');
+            ALTER INDEX p_old_default_write_idx RESET(storage);
+            INSERT INTO p_old_default_write VALUES ('beer');").unwrap();
+    }
+
+    #[pg_test]
+    fn reindex_migrates_legacy_zero_page_to_default() {
+        Spi::run(
+            "CREATE TABLE p_old_reindex(body text);
+            INSERT INTO p_old_reindex VALUES ('beer');
+            CREATE INDEX p_old_reindex_idx ON p_old_reindex USING plumb(body) WITH(storage='heap');
+            ALTER INDEX p_old_reindex_idx RESET(storage);
+            REINDEX INDEX p_old_reindex_idx;
+            INSERT INTO p_old_reindex VALUES ('craft beer');
+            SET LOCAL enable_seqscan=off;",
+        )
+        .unwrap();
+        assert_eq!(
+            Spi::get_one::<i64>("SELECT count(*) FROM p_old_reindex WHERE body ~~> 'beer'")
+                .unwrap(),
+            Some(2)
+        );
+        assert_eq!(
+            Spi::get_one::<String>("SELECT plumb.index_stats('p_old_reindex_idx')->>'storage'")
+                .unwrap()
+                .as_deref(),
+            Some("postings_v1")
+        );
+    }
+
+    fn merge() -> pgrx::JsonB {
+        Spi::get_one::<pgrx::JsonB>("SELECT plumb.merge_index('p_docs_idx')")
+            .unwrap()
+            .unwrap()
+    }
+
+    #[pg_test]
+    fn merge_keeps_regclass_sql_signature_without_oid_overload() {
+        assert_eq!(
+            Spi::get_one::<bool>(
+                "SELECT p.proargtypes[0] = 'regclass'::regtype
+                    AND p.prorettype = 'jsonb'::regtype AND p.proisstrict
+                    AND p.provolatile = 'v' AND p.proparallel = 'u'
+                    AND to_regprocedure('plumb.merge_index(oid)') IS NULL
+                FROM pg_proc p WHERE p.oid = 'plumb.merge_index(regclass)'::regprocedure",
+            )
+            .unwrap(),
+            Some(true)
+        );
+        setup();
+        // Both the documented untyped-name call and an explicit regclass datum
+        // must still resolve the one public signature.
+        assert_eq!(merge().0["changed"], false);
+        assert_eq!(
+            Spi::get_one::<pgrx::JsonB>("SELECT plumb.merge_index('public.p_docs_idx'::regclass)",)
+                .unwrap()
+                .unwrap()
+                .0["changed"],
+            false
+        );
+        assert!(
+            Spi::get_one::<pgrx::JsonB>("SELECT plumb.merge_index(NULL::regclass)")
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[pg_test]
+    fn merge_rejects_dropped_index_oid_without_opening_replacement() {
+        setup();
+        Spi::run(
+            "DO $$ DECLARE old_index regclass := 'p_docs_idx'::regclass;
+            BEGIN
+                DROP INDEX p_docs_idx;
+                CREATE INDEX p_docs_idx ON p_docs USING plumb(body);
+                BEGIN
+                    PERFORM plumb.merge_index(old_index);
+                EXCEPTION WHEN internal_error THEN
+                    IF SQLERRM <> 'plumb.merge_index requires an index using the plumb access method'
+                    THEN RAISE; END IF;
+                    RETURN;
+                END;
+                RAISE EXCEPTION 'dropped index OID unexpectedly merged';
+            END $$;",
+        )
+        .unwrap();
+        assert_eq!(merge().0["changed"], false);
+        assert_eq!(ids("beer"), vec![1, 3]);
+    }
+
+    #[pg_test]
+    fn merge_changed_requires_owner_after_heap_first_open() {
+        setup();
+        Spi::run(
+            "INSERT INTO p_docs VALUES (6,'beer');
+            CREATE ROLE p_merge_lock_owner NOLOGIN;
+            CREATE ROLE p_merge_lock_member NOLOGIN INHERIT;
+            CREATE ROLE p_merge_lock_outsider NOLOGIN;
+            GRANT p_merge_lock_owner TO p_merge_lock_member;
+            GRANT USAGE ON SCHEMA plumb,public TO
+                p_merge_lock_owner,p_merge_lock_member,p_merge_lock_outsider;
+            GRANT EXECUTE ON FUNCTION plumb.merge_index(regclass) TO
+                p_merge_lock_owner,p_merge_lock_member,p_merge_lock_outsider;
+            ALTER TABLE p_docs OWNER TO p_merge_lock_owner;
+            SET LOCAL ROLE p_merge_lock_outsider;
+            DO $$ BEGIN
+                BEGIN
+                    PERFORM plumb.merge_index('public.p_docs_idx');
+                EXCEPTION WHEN insufficient_privilege THEN
+                    IF SQLERRM <> 'must be owner of index to merge plumb postings' THEN RAISE; END IF;
+                    RETURN;
+                END;
+                RAISE EXCEPTION 'nonowner merge unexpectedly succeeded';
+            END $$;
+            RESET ROLE;",
+        )
+        .unwrap();
+        assert!(segments() > 1);
+        Spi::run("SET LOCAL ROLE p_merge_lock_member").unwrap();
+        assert_eq!(merge().0["changed"], true);
+        Spi::run(
+            "RESET ROLE;
+            INSERT INTO p_docs VALUES (7,'beer');
+            SET LOCAL ROLE p_merge_lock_owner;",
+        )
+        .unwrap();
+        assert_eq!(merge().0["changed"], true);
+        Spi::run("RESET ROLE").unwrap();
+        assert_eq!(segments(), 1);
+        assert_eq!(ids("beer"), vec![1, 3, 6, 7]);
+    }
+
+    #[pg_test]
+    fn merge_many_segments_preserves_results_and_continued_inserts() {
+        setup();
+        Spi::run(
+            "INSERT INTO p_docs SELECT n, CASE WHEN n%2=0 THEN 'beer craft' ELSE 'wine' END
+            FROM generate_series(6,45) n;
+            UPDATE p_docs SET body='wine' WHERE id=1;
+            DELETE FROM p_docs WHERE id=3;
+            DO $$ BEGIN BEGIN
+                INSERT INTO p_docs VALUES(999,'rollback beer');
+                RAISE EXCEPTION 'rollback';
+            EXCEPTION WHEN raise_exception THEN NULL; END; END $$;",
+        )
+        .unwrap();
+        let queries = [
+            "beer",
+            "craft AND beer",
+            "wine OR beer",
+            "\"craft beer\"",
+            "beer AND NOT wine",
+            "*",
+        ];
+        let before: Vec<_> = queries.iter().map(|q| ids(q)).collect();
+        assert!(segments() > 20);
+        let result = merge().0;
+        assert_eq!(result["changed"], true);
+        assert!(result["before"]["segments"].as_u64().unwrap() > 20);
+        assert_eq!(result["after"]["segments"], 1);
+        assert_eq!(result["after"]["format_version"], 1);
+        assert!(result["after"]["payload_bytes"].as_u64().unwrap() > 0);
+        assert!(
+            result["after"]["relation_blocks"].as_u64().unwrap()
+                > result["before"]["relation_blocks"].as_u64().unwrap()
+        );
+        assert_eq!(segments(), 1);
+        for (query, expected) in queries.iter().zip(before) {
+            assert_eq!(ids(query), expected, "{query}");
+        }
+        assert_eq!(ids("rollback"), Vec::<i32>::new());
+        Spi::run("INSERT INTO p_docs VALUES (1000,'beer newmarker')").unwrap();
+        assert_eq!(segments(), 2);
+        assert_eq!(ids("newmarker AND beer"), vec![1000]);
+    }
+
+    #[pg_test]
+    fn merge_zero_and_one_segments_are_noops() {
+        Spi::run(
+            "CREATE TABLE p_docs(id int,body text);
+            INSERT INTO p_docs VALUES (1,NULL),(2,'...');
+            CREATE INDEX p_docs_idx ON p_docs USING plumb(body);",
+        )
+        .unwrap();
+        let empty = merge().0;
+        assert_eq!(empty["changed"], false);
+        assert_eq!(empty["before"], empty["after"]);
+        assert_eq!(empty["before"]["segments"], 0);
+        assert_eq!(empty["before"]["relation_blocks"], 1);
+        Spi::run("INSERT INTO p_docs VALUES (3,'beer')").unwrap();
+        let one = merge().0;
+        assert_eq!(one["changed"], false);
+        assert_eq!(one["before"], one["after"]);
+        assert_eq!(one["after"]["segments"], 1);
+    }
+
+    #[pg_test]
+    fn merge_uses_persisted_identity_not_heap_reloption() {
+        setup();
+        Spi::run(
+            "ALTER INDEX p_docs_idx SET(storage='heap');
+            INSERT INTO p_docs VALUES (6,'beer');",
+        )
+        .unwrap();
+        assert_eq!(merge().0["changed"], true);
+        assert_eq!(ids("beer"), vec![1, 3, 6]);
+        assert_eq!(segments(), 1);
+    }
+
+    #[pg_test(error = "plumb.merge_index requires an index using the plumb access method")]
+    fn merge_rejects_table() {
+        setup();
+        let _ = Spi::get_one::<pgrx::JsonB>("SELECT plumb.merge_index('p_docs')");
+    }
+
+    #[pg_test(error = "plumb.merge_index requires an index using the plumb access method")]
+    fn merge_rejects_other_access_methods() {
+        Spi::run(
+            "CREATE TABLE p_merge_wrong(id int);
+            CREATE INDEX p_merge_wrong_idx ON p_merge_wrong(id);",
+        )
+        .unwrap();
+        let _ = Spi::get_one::<pgrx::JsonB>("SELECT plumb.merge_index('p_merge_wrong_idx')");
+    }
+
+    #[pg_test(
+        error = "plumb.merge_index requires persisted postings_v1 storage; REINDEX is required"
+    )]
+    fn merge_rejects_heap_storage() {
+        Spi::run(
+            "CREATE TABLE p_merge_heap(body text);
+            CREATE INDEX p_merge_heap_idx ON p_merge_heap USING plumb(body) WITH(storage='heap');",
+        )
+        .unwrap();
+        let _ = Spi::get_one::<pgrx::JsonB>("SELECT plumb.merge_index('p_merge_heap_idx')");
+    }
+
+    #[pg_test]
+    fn merge_requires_owner_or_inherited_ownership() {
+        setup();
+        // All roles and grants are transactional. SET LOCAL plus RESET ROLE
+        // also prevents a caught negative test from contaminating later checks.
+        Spi::run("CREATE ROLE p_merge_owner NOLOGIN;
+            CREATE ROLE p_merge_member NOLOGIN INHERIT;
+            CREATE ROLE p_merge_outsider NOLOGIN;
+            GRANT p_merge_owner TO p_merge_member;
+            GRANT USAGE ON SCHEMA plumb,public TO p_merge_owner,p_merge_member,p_merge_outsider;
+            GRANT EXECUTE ON FUNCTION plumb.merge_index(regclass) TO p_merge_owner,p_merge_member,p_merge_outsider;
+            ALTER TABLE p_docs OWNER TO p_merge_owner;
+            SET LOCAL ROLE p_merge_member;").unwrap();
+        assert_eq!(merge().0["changed"], false);
+        Spi::run("RESET ROLE; SET LOCAL ROLE p_merge_outsider;
+            DO $$ BEGIN
+                BEGIN
+                    PERFORM plumb.merge_index('public.p_docs_idx');
+                EXCEPTION WHEN insufficient_privilege THEN
+                    IF SQLERRM <> 'must be owner of index to merge plumb postings' THEN RAISE; END IF;
+                    RETURN;
+                END;
+                RAISE EXCEPTION 'nonowner merge unexpectedly succeeded';
+            END $$;
+            RESET ROLE;").unwrap();
+        assert_eq!(segments(), 1);
+        assert_eq!(ids("beer"), vec![1, 3]);
+    }
+
+    #[pg_test]
+    fn default_bulk_build_exceeds_old_whole_index_pair_limit() {
+        // 400,000 distinct term/CTID pairs exceed the former 262,144-pair
+        // whole-build cap while each bounded segment stays below it.
+        Spi::run(
+            "CREATE TABLE p_docs(id int,body text);
+            INSERT INTO p_docs SELECT n,'alpha beta gamma ' ||
+                CASE WHEN n%997=0 THEN 'rare' ELSE 'ordinary' END
+                FROM generate_series(1,100000) n;
+            CREATE INDEX p_docs_idx ON p_docs USING plumb(body);",
+        )
+        .unwrap();
+        assert!(segments() > 1);
+        for query in ["rare", "alpha AND rare", "rare OR ordinary"] {
+            Spi::run("SET LOCAL enable_bitmapscan=off; SET LOCAL enable_seqscan=on;").unwrap();
+            let expected = ids(query);
+            Spi::run("SET LOCAL enable_bitmapscan=on; SET LOCAL enable_seqscan=off;").unwrap();
+            assert_eq!(ids(query), expected, "{query}");
+        }
+        assert_eq!(ids("rare").len(), 100);
     }
 
     #[pg_test(error = "plumb.index_stats requires an index using the plumb access method")]

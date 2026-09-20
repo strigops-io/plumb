@@ -15,6 +15,7 @@
 //
 // The full license text is available in LICENSE.
 // Modified by Plumb contributors on 2026-09-20: opt-in experimental persisted postings format.
+// Modified by Plumb contributors on 2026-09-20: postings_v1 default with explicit heap compatibility.
 use pgrx::{pg_guard, pg_sys};
 use std::ffi::CStr;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -124,9 +125,10 @@ pub fn init() {
         pg_sys::add_enum_reloption(
             kind,
             c"storage".as_ptr(),
-            c"Experimental storage format; use REINDEX to switch persisted formats".as_ptr(),
+            c"Storage format (default postings_v1); use REINDEX to switch persisted formats"
+                .as_ptr(),
             (&raw mut STORAGES).cast(),
-            STORAGE_HEAP,
+            STORAGE_POSTINGS_V1,
             std::ptr::null(),
             lock,
         );
@@ -402,7 +404,9 @@ pub unsafe fn score_stop_words(index: pg_sys::Relation) -> Option<String> {
 
 /// Reloption is consulted only for new builds and missing-metapage rejection.
 pub unsafe fn postings_requested(index: pg_sys::Relation) -> bool {
-    unsafe { parsed(index) }.is_some_and(|o| o.storage == STORAGE_POSTINGS_V1)
+    // PostgreSQL leaves rd_options null when WITH is omitted. Keep this fallback
+    // identical to the registered enum default, including unrelated reloptions.
+    unsafe { parsed(index) }.is_none_or(|o| o.storage == STORAGE_POSTINGS_V1)
 }
 
 pub unsafe fn validate_postings(index: pg_sys::Relation) {

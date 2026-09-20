@@ -1,7 +1,8 @@
 # PostgreSQL development-dataset baseline
 
-`baseline.sql` measures the **current Plumb PostgreSQL extension** (`plumb` access
-method and `~~>` operator) in this Plumb repository. It is not a benchmark of the
+`baseline.sql` measures the **explicit legacy heap mode** of Plumb (`plumb` access
+method, `~~>` operator and `WITH(storage='heap')`). The default persisted engine
+is tested in tests/postings_demo.sql and tests/default_engine_growth.sql instead. It is not a benchmark of the
 standalone in-memory postings crate, a production TIN instance, or evidence of a
 performance improvement. Plumb's inherited Lead path emits all heap pages as lossy bitmap
 candidates and rechecks the rows. Rare terms therefore need not yield fast scans,
@@ -89,7 +90,7 @@ scales. Expected counts are useful diagnostics, **not** the correctness test.
 The index uses the public/tested syntax:
 
 ```sql
-CREATE INDEX plumb_bench_docs_search ON pg_temp.plumb_bench_docs USING plumb (body);
+CREATE INDEX plumb_bench_docs_search ON pg_temp.plumb_bench_docs USING plumb (body) WITH(storage='heap');
 ```
 
 No custom tokenizer/scoring reloptions are set. The default text operator and

@@ -1,6 +1,6 @@
 # Persistent postings: disposable SQL demonstration and validation
 
-**Status: executed successfully on PostgreSQL 17.10 using the checkpoint-003 release build.**
+**Status: executed on PostgreSQL 17.10; checkpoint 004 now uses the persisted engine by default.**
 The SELECT demo, mutation matrix, concurrent writers, actual immediate-stop recovery,
 pre-build HOT and proven partial-index CTID reuse passed. See the
 [recorded results](../docs/checkpoint-003-results.md) and
@@ -81,7 +81,7 @@ The permanent heap has IDs 1–30,000, approximately **1,063 bytes of body text 
 row**, plus a NULL document (30,001) and an empty document (30,002). `STORAGE PLAIN`
 prevents compression from invalidating the physical-size premise. Four repeated
 words plus parity/rare/two marker words keep vocabulary tiny. The index is built
-**after** loading all 30,002 rows, yielding one bulk segment.
+**after** loading all 30,002 rows, yielding multiple bounded bulk segments in checkpoint 004.
 
 `beacon` appears exactly when `id % 997 = 0` among the 30,000 regular documents:
 
@@ -223,7 +223,7 @@ SELECT plumb.index_stats('schema.index_name'::regclass);
 
 `index_stats` is castable to `jsonb` and returns a **flat object**, with integer-like
 `format_version`, `segments`, `payload_bytes`, `relation_blocks` keys. Version 1 and
-one bulk segment are asserted for the untouched demo. Physical block count equals
+multiple bounded bulk segments are asserted for the untouched demo. Physical block count equals
 MAIN-fork `pg_relation_size / current_setting('block_size')`. Missing keys fail
 rather than becoming a silent default. PostgreSQL EXPLAIN is the normal one-element
 JSON array; plan children are under `Plans`, and fields include `Node Type`,
@@ -253,3 +253,23 @@ This focused suite does not prove cap-exhaustion behavior, crash/cancellation at
 every publication boundary, long-run stress, replication/PITR, all heap rewrite
 paths, or hosted proprietary TIN compatibility. It enforces correctness/pruning,
 not a general throughput or latency guarantee.
+
+## Checkpoint 004 growth and merge
+
+After this demo succeeds in a fresh local database named `plumb_postings_checkpoint004`:
+
+```sh
+psql -X -v ON_ERROR_STOP=1 -v disposable_db=plumb_postings_checkpoint004 \
+  -d plumb_postings_checkpoint004 -f tests/default_engine_growth.sql
+python3 -B tests/merge_concurrency.py --host "$PGHOST" --port "$PGPORT" \
+  --database plumb_postings_checkpoint004
+```
+
+These create new guarded schemas; never rerun over existing fixtures. Growth checks
+200k rows and 1,000,201 term/CTID pairs with **no storage reloption**, compares rare,
+AND/OR results, and verifies a too-large merge fails without metadata/size changes.
+The merge runner checks existing old-visible versions, active committing/aborting
+appenders, competing mergers, and deterministic TRUNCATE lock order. It leaves a
+manifest for `--verify-only` after a separately authorized disposable-cluster crash/
+restart. Use new `--log`/`--summary` output paths for recovery results. See
+[checkpoint-004-results.md](../docs/checkpoint-004-results.md) for recorded evidence.

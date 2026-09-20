@@ -1,0 +1,6 @@
+2026-09-20 12:45:01.878 NZST [45485] LOG:  received immediate shutdown request
+2026-09-20 12:45:02.029 NZST [45554] LOG:  database system was interrupted; last known up at 2026-09-20 12:42:40 NZST
+2026-09-20 12:45:02.035 NZST [45554] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-09-20 12:45:02.036 NZST [45554] LOG:  redo starts at 0/17297D0
+2026-09-20 12:45:02.257 NZST [45554] LOG:  redo done at 0/650ACC0 system usage: CPU: user: 0.18 s, system: 0.03 s, elapsed: 0.22 s
+2026-09-20 12:45:02.258 NZST [45552] LOG:  checkpoint starting: end-of-recovery immediate wait

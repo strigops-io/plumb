@@ -80,7 +80,8 @@ FROM pg_temp.plumb_bench_config c
 CROSS JOIN LATERAL generate_series(1::bigint, c.rows::bigint) AS g(n);
 
 \echo setup_build_plumb_index
-CREATE INDEX plumb_bench_docs_search ON pg_temp.plumb_bench_docs USING plumb (body);
+-- This temp-table harness deliberately benchmarks the legacy heap baseline.
+CREATE INDEX plumb_bench_docs_search ON pg_temp.plumb_bench_docs USING plumb (body) WITH(storage='heap');
 \echo setup_analyze
 ANALYZE pg_temp.plumb_bench_docs;
 

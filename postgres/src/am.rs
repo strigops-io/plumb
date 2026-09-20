@@ -15,6 +15,7 @@
 //
 // The full license text is available in LICENSE.
 // Modified by Plumb contributors on 2026-09-20: experimental persisted CTID bitmap index path.
+// Modified by Plumb contributors on 2026-09-20: bounded default builds and owner-checked manual merge.
 use pgrx::{PgBox, pg_extern, pg_guard, pg_sys};
 use std::ffi::c_void;
 
@@ -174,7 +175,20 @@ unsafe fn persisted_mode(index: pg_sys::Relation) -> bool {
 struct BuildState {
     tuples: u64,
     postings: bool,
+    index: pg_sys::Relation,
     builder: crate::term_index::Builder,
+}
+
+impl BuildState {
+    unsafe fn flush(&mut self) {
+        if self.builder.is_empty() {
+            return;
+        }
+        let payload = checked(std::mem::take(&mut self.builder).finish());
+        if !payload.is_empty() {
+            unsafe { crate::storage::append(self.index, &payload) };
+        }
+    }
 }
 
 #[pg_guard]
@@ -196,10 +210,16 @@ unsafe extern "C-unwind" fn ambuild(
             );
         }
     }
+    if postings {
+        // Publish the empty metapage once, before the scan. Each bounded builder
+        // becomes an immutable appended segment; never reinitialize at scan end.
+        unsafe { crate::storage::build(index, &[]) };
+    }
     // Registered with PostgreSQL, so callback ERROR / cancellation cannot leak
     // the Rust term map even if PostgreSQL abandons the C build stack.
     let state = pgrx::PgMemoryContexts::CurrentMemoryContext.leak_and_drop_on_delete(BuildState {
         postings,
+        index,
         ..BuildState::default()
     });
     let heap_tuples = unsafe {
@@ -215,11 +235,7 @@ unsafe extern "C-unwind" fn ambuild(
         )
     };
     if postings {
-        let builder = unsafe { std::mem::take(&mut (*state).builder) };
-        let payload = checked(builder.finish());
-        unsafe {
-            crate::storage::build(index, &payload);
-        }
+        unsafe { (*state).flush() };
     }
     let mut result = unsafe { PgBox::<pg_sys::IndexBuildResult>::alloc0() };
     result.heap_tuples = heap_tuples;
@@ -238,12 +254,15 @@ unsafe fn add_document(
     }
     let document = unsafe { <&str as pgrx::FromDatum>::from_datum(*values, false) }
         .expect("nonnull index text datum");
+    checked(builder.add(document, unsafe { callback_ctid(tid) }));
+}
+
+unsafe fn callback_ctid(tid: pg_sys::ItemPointer) -> plumb_postings::Ctid {
     // The build callback supplies the HOT root TID; never substitute t_self.
     let tid = unsafe { &*tid };
     let block = (u32::from(tid.ip_blkid.bi_hi) << 16) | u32::from(tid.ip_blkid.bi_lo);
-    let ctid = plumb_postings::Ctid::new(block, tid.ip_posid)
-        .unwrap_or_else(|e| pgrx::error!("invalid postings_v1 CTID: {e}"));
-    checked(builder.add(document, ctid));
+    plumb_postings::Ctid::new(block, tid.ip_posid)
+        .unwrap_or_else(|e| pgrx::error!("invalid postings_v1 CTID: {e}"))
 }
 
 #[pg_guard]
@@ -258,10 +277,21 @@ unsafe extern "C-unwind" fn build_callback(
     let state = unsafe { &mut *state.cast::<BuildState>() };
     state.tuples += 1;
     pgrx::check_for_interrupts!();
-    if state.postings {
-        unsafe {
-            add_document(&mut state.builder, tid, values, isnull);
+    if state.postings && !unsafe { *isnull } {
+        let document = unsafe { <&str as pgrx::FromDatum>::from_datum(*values, false) }
+            .expect("nonnull index text datum");
+        // Preparation is bounded and atomic. Reuse it across a flush instead of
+        // retokenizing, parsing limit errors, or leaving a partially added row.
+        let prepared = checked(crate::term_index::prepare(document, unsafe {
+            callback_ctid(tid)
+        }));
+        if state.builder.should_flush() || !state.builder.can_accept(&prepared) {
+            unsafe { state.flush() };
         }
+        if !state.builder.can_accept(&prepared) {
+            pgrx::error!("postings_v1 single document exceeds segment builder limits");
+        }
+        checked(state.builder.add_prepared(&prepared));
     }
 }
 
@@ -487,6 +517,96 @@ fn index_stats(index: pgrx::PgRelation) -> pgrx::JsonB {
         };
         pgrx::JsonB(format!("{{\"storage\":\"{format}\",\"format_version\":{version},\"segments\":{segments},\"payload_bytes\":{payload},\"relation_blocks\":{blocks}}}")
             .parse().expect("valid statistics JSON"))
+    }
+}
+
+/// Bounded consolidation, not VACUUM: old immutable pages and their CTIDs remain
+/// available to readers holding an older head snapshot. Accept the regclass datum
+/// as an OID: PgRelation argument conversion would lock the index before its heap,
+/// inverting PostgreSQL's DDL lock order (notably TRUNCATE/REINDEX).
+#[pg_extern(sql = "
+    CREATE FUNCTION @extschema@.merge_index(index regclass)
+        RETURNS jsonb
+        VOLATILE STRICT PARALLEL UNSAFE
+        LANGUAGE c AS 'MODULE_PATHNAME', '@FUNCTION_NAME@';
+")]
+fn merge_index(index: pg_sys::Oid) -> pgrx::JsonB {
+    unsafe {
+        // Catalog-only lookup: copy the parent OID without opening/locking the
+        // index or retaining any catalog/relcache pointer across a lock wait.
+        let heap_oid = pg_sys::IndexGetRelation(index, true);
+        if heap_oid == pg_sys::InvalidOid {
+            pgrx::error!("plumb.merge_index requires an index using the plumb access method");
+        }
+        // relation_open acquires each lock before opening the relcache entry and
+        // processes invalidations after a wait. A concurrent drop therefore errors
+        // cleanly rather than handing us a stale Relation. Keep both locks for the
+        // entire merge; no unlocked index pointer is ever inspected.
+        let heap = pgrx::PgRelation::with_lock(heap_oid, pg_sys::AccessShareLock as _);
+        let locked_index = pgrx::PgRelation::with_lock(index, pg_sys::AccessShareLock as _);
+        let relation = locked_index.as_ptr();
+        if (*relation).rd_id != index
+            || (*(*relation).rd_rel).relkind != pg_sys::RELKIND_INDEX as i8
+            || (*(*relation).rd_rel).relam != pg_sys::get_am_oid(c"plumb".as_ptr(), false)
+            || (*relation).rd_index.is_null()
+        {
+            pgrx::error!("plumb.merge_index requires an index using the plumb access method");
+        }
+        // The pre-lock catalog lookup was only a hint. Never proceed against a
+        // changed parent, or acquire another heap lock while holding the index.
+        let definition = &*(*relation).rd_index;
+        if definition.indexrelid != index || definition.indrelid != heap.oid() {
+            pgrx::error!("plumb.merge_index index identity changed while acquiring locks; retry");
+        }
+        // PG17 and PG18 expose object_ownercheck (not pg_class_ownercheck).
+        // PostgreSQL handles superusers and inherited ownership role membership.
+        if !pg_sys::object_ownercheck(
+            pg_sys::RelationRelationId,
+            (*relation).rd_id,
+            pg_sys::GetUserId(),
+        ) {
+            pgrx::ereport!(
+                pgrx::PgLogLevel::ERROR,
+                pgrx::PgSqlErrorCode::ERRCODE_INSUFFICIENT_PRIVILEGE,
+                "must be owner of index to merge plumb postings"
+            );
+        }
+        pg_sys::PreventCommandIfReadOnly(c"plumb.merge_index".as_ptr());
+        pg_sys::PreventCommandIfParallelMode(c"plumb.merge_index".as_ptr());
+        pg_sys::PreventCommandDuringRecovery(c"plumb.merge_index".as_ptr());
+        if (*(*relation).rd_rel).relpersistence != pg_sys::RELPERSISTENCE_PERMANENT as i8 {
+            pgrx::error!("plumb.merge_index requires a permanent index");
+        }
+        if !definition.indisvalid || !definition.indisready || !definition.indislive {
+            pgrx::error!("plumb.merge_index requires a valid, ready, live index");
+        }
+        validate_heap(heap.as_ptr());
+        crate::options::validate_postings(relation);
+        validate_postings_semantics(relation);
+        // Identity is on disk, not the current reloption; never convert heap
+        // storage here, even if its reloption was changed to postings_v1.
+        if crate::storage::stats(relation).is_none() {
+            pgrx::error!(
+                "plumb.merge_index requires persisted postings_v1 storage; REINDEX is required"
+            );
+        }
+        let result = crate::storage::merge(relation, crate::term_index::merge_payloads);
+        fn stats_json(s: crate::storage::StorageStats) -> String {
+            format!(
+                "{{\"format_version\":{},\"segments\":{},\"payload_bytes\":{},\"relation_blocks\":{}}}",
+                s.format_version, s.segments, s.payload_bytes, s.relation_blocks
+            )
+        }
+        pgrx::JsonB(
+            format!(
+                "{{\"changed\":{},\"before\":{},\"after\":{}}}",
+                result.changed,
+                stats_json(result.before),
+                stats_json(result.after)
+            )
+            .parse()
+            .expect("valid merge statistics JSON"),
+        )
     }
 }
 

@@ -126,7 +126,7 @@ compatibility evidence. The following constraints are non-negotiable:
 ## Evidence and limits
 
 On PostgreSQL 17.10, checkpoint 001 passed 41 extension tests, including five
-identity/operator-shadow regressions. Checkpoint 003 passes 73 extension tests
+identity/operator-shadow regressions. Checkpoint 003 passed 73 extension tests; checkpoint 004 passes 109
 with the persistent path added. [tests/coexistence.sql](../tests/coexistence.sql)
 again passed 54 checks against unchanged **public Lead**: extension membership,
 unchanged Lead procedures, same-table index routing, mixed scores/highlights,

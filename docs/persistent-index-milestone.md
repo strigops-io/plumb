@@ -1,4 +1,8 @@
-# Persistent postings milestone: implementation contract
+# Persistent postings milestone: checkpoint-003 implementation contract
+
+> Historical checkpoint-003 contract. Checkpoint 004 changes the default to
+> postings_v1, adds bounded multi-segment builds and manual immutable merging; see
+> [default-engine-and-merge.md](default-engine-and-merge.md).
 
 This milestone now demonstrates actual SQL pruning from stored grouped CTID
 postings while retaining a correct fallback on PostgreSQL 17.10. It is an experimental implementation,
