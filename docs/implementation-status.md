@@ -2,11 +2,11 @@
 
 ## Scope of this increment
 
-This is Phase 0 groundwork and the **scalar postings portion** of Phase 1 in
-[VISION.md](../VISION.md). Neither phase is declared complete. The first milestone
-keeps the postings algorithm separable from PostgreSQL while establishing an
-independent Plumb SQL identity, coexistence contract and repeatable baseline before
-introducing persistent index state.
+Checkpoint 003 integrates the scalar postings core into an **opt-in persistent SQL
+index**. A real SELECT uses grouped CTID candidates read from PostgreSQL-managed
+WAL-logged pages. It is still a bounded proof of concept; none of the complete
+production phases in [VISION.md](../VISION.md) is declared finished. See
+[the demonstration and limitations](checkpoint-003-results.md).
 
 Repository: `strigops-io/plumb`. Starting revision:
 `bd95c7e51b6afce81396790852ee2f2c169570ad` (Lead-derived baseline).
@@ -15,20 +15,43 @@ Repository: `strigops-io/plumb`. Starting revision:
 | --- | --- | --- |
 | TINQL, tokenization, scoring, highlighting | Language/algorithms inherited; SQL identity and binding isolated | Language crates unchanged; PostgreSQL behavior assertions preserved with name substitutions |
 | SQL extension/API | plumb 0.1.0, plumb schema/AM, ~~> operator | Native identity implemented; optional tin adapter deferred; see coexistence.md |
-| Index scans/build/insert/VACUUM | Original heap-backed Lead path | postgres/src/am.rs; no persistent search entries; every heap page remains a candidate |
+| Index scans/build/insert/VACUUM | Default heap baseline plus opt-in postings_v1 | Bulk term segment, exact positive candidates, per-insert immutable appends; VACUUM does not reclaim postings |
 | CTID identity and validation | Implemented in standalone library | postings/src/lib.rs; no logical-document-ID mapping |
-| 256-page groups, masks, sparse offsets | Implemented in memory | Scalar union, intersection and finite set difference; canonical immutable representation |
-| Boolean query compilation | Not implemented for postings | Existing TINQL heap evaluator remains authoritative; library difference is not SQL NOT |
-| Terms, positions, frequencies and stats in storage | Not implemented | No dictionary, position stream or index-backed BM25 |
+| 256-page groups, masks, sparse offsets | Implemented and persisted in per-term codec frames | Query decodes CTIDs, unions terms across segments and intersects/unions grouped sets |
+| Boolean query compilation | Positive terms, AND/OR/conjunction/boost | Unsupported query shapes fall back to heap recheck; never unsafe NOT subtraction |
+| Terms, positions, frequencies and stats in storage | Sorted term dictionary implemented | No positions/frequencies/index-backed BM25; metadata stats only |
 | Standalone postings serialization | Experimental v1 codec implemented | Canonical little-endian frame, CRC32C, allocation-free validation and explicit limits; docs/postings-format.md |
-| Metapage and segment directory | Not implemented | Codec is not a PostgreSQL storage format or production migration path |
-| WAL, generation publication, recovery and replication | Not implemented for postings | The new library is not used by the access method |
-| Online writes, HOT, VACUUM liveness and CTID reuse | Not implemented for postings | Heap-backed baseline behavior must not be confused with persistent-index correctness |
-| Bounded PostgreSQL memory/interrupts | Not implemented in postings | Rust vectors allocate whole inputs/results; not charged to PostgreSQL contexts |
+| Metapage and segment directory | Versioned metapage plus immutable backwards-linked segments | MAIN-fork pages with per-page checksums; no merge/reclamation/generation replacement |
+| WAL, publication, recovery and replication | Generic WAL for page writes then head publication | Local immediate-stop recovery passed; replication/PITR and publication-fault campaigns unproven |
+| Online writes, HOT, VACUUM liveness and CTID reuse | Per-insert append plus mandatory MVCC/operator recheck | Mutation/concurrency/HOT/reuse cases passed; no liveness mask or dead-byte reclamation |
+| Resource/interrupt control | Fixed text/pair/query/payload/page caps and loop interrupts | Not work_mem/RSS accounting; no spill; container/allocator/transient overhead remains |
 | SQL baseline harness | Implemented and exercised locally | benches/baseline.sql: deterministic corpus, full ID multiset checks, arithmetic oracle, JSON plans |
 | Production readiness / hosted escape hatch | Unproven | No performance, operational or complete hosted-compatibility conclusion yet |
 
-## Validation performed
+## Checkpoint 003 validation
+
+- **73 extension tests passed**, including 42 executed inside PostgreSQL 17 and
+  31 host-side tests. Eight new hardening regressions cover incompatible opclasses
+  and query datatypes before unsafe Datum conversions.
+- **377 pure Rust tests passed**; 32 postings tests/doctests also passed in release.
+- Workspace Clippy with PG17 and pg_test, all targets, passed with warnings denied;
+  formatting passed. Full PG18 compile checks using shipped bindings passed, but
+  no PG18 server was run.
+- Release-build SQL demo: 30,002 rows / 4,286 heap blocks; 30 expected rare matches,
+  **30 exact heap blocks and zero lossy blocks**, naturally chosen Bitmap Heap Scan.
+  Persistent index: one segment, 356,427 payload bytes, 45 relation blocks.
+- 48 demonstration checks, 346 mutation-script checks, 16 HOT/partial-reuse checks,
+  54 public Lead coexistence checks passed. REINDEX and TRUNCATE succeeded and
+  preserved correctness; actual CREATE INDEX CONCURRENTLY was explicitly rejected.
+- Two simultaneous writers, anchored repeatable-read snapshot, rollback candidates
+  and subsequent inserts passed. Final fixture: 210 committed rows, 14 beacon hits.
+- Immediate-stop/restart with fsync, full_page_writes and checksums ON replayed WAL.
+  Original data/index were not rebuilt. Demo (48 checks), mutations (28 checks) and
+  concurrent committed/aborted outcomes revalidated; index metadata was unchanged.
+- Evidence and limits: [checkpoint-003-results.md](checkpoint-003-results.md).
+  This is not a production recovery/replication certification or large-scale benchmark.
+
+## Historical checkpoint 001/002 validation
 
 Local validation on 2026-09-19 UTC, x86-64 Linux, Rust 1.96.0, cargo-pgrx 0.19.1,
 PostgreSQL 17.10. All databases were disposable/local; no hosted TIN connection or
@@ -54,7 +77,7 @@ name/operator substitutions; five identity tests were added.
 - Postings tests also passed in release mode; `cargo fmt` and Clippy passed for
   the new crate with warnings denied.
 - Before the SQL rename, unchanged upstream `cargo pgrx test pg17` passed 36 tests.
-  The native Plumb suite now passes **41 tests**, including 19 in PostgreSQL.
+  The checkpoint-001 native Plumb suite passed **41 tests**, including 19 in PostgreSQL.
 - The SQL harness passed at **1,000 and 100,000 rows** before the rename, with two
   iterations each: 16 plan samples and 4 correctness records per run.
 - After updating the harness to `USING plumb` and `~~>`, a native Plumb **1,000-row**
@@ -76,8 +99,9 @@ name/operator substitutions; five identity tests were added.
 These were **validation runs, not controlled performance benchmarks**: the extension
 was a debug build and a test retry briefly overlapped the larger run. The historical runs
 reported zero-byte tin indexes (the native 1k run likewise has a zero-byte plumb index), as expected for Lead's no-postings implementation.
-No SQL speedup can be attributed to the unintegrated scalar library. The 1m/10m
-examples have not been run. PostgreSQL 18 and ARM are CI targets, not locally
+At checkpoints 001/002 the scalar library was unintegrated, so those runs showed
+no postings SQL improvement. Checkpoint 003 has a separate measured demo above.
+The 1m/10m examples have not been run. PostgreSQL 18 and ARM are CI targets, not locally
 validated results for this increment.
 
 One initial PostgreSQL test invocation failed because the sandbox lacked `USER`;
@@ -111,7 +135,7 @@ This initial ledger records provenance, not a claim of full TIN equivalence.
 | --- | --- | --- |
 | TINQL and SQL helper behavior | Inherited from public Lead source | Language crates unchanged; PostgreSQL helpers renamed to plumb and binding isolated |
 | plumb extension/schema/AM, ~~> operator, public Lead coexistence | Plumb-specific implementation and local observation | Exact-OID tests and tests/coexistence.sql; hosted TIN not tested |
-| Existing access method returns all heap pages | Public source inspection | postgres/src/am.rs, especially amgetbitmap; local plans and zero-byte index sizes |
+| Default heap baseline returns all heap pages | Inherited source behavior | Opt-in postings_v1 instead emits exact positive candidates; see recorded demo |
 | Term/AND/OR results on the generated corpus | Independent local observation | baseline.sql checks complete ID multisets against arithmetic predicates |
 | Grouped CTID set operations are exact finite-set operations | Plumb-specific implementation | BTreeSet reference tests, exhaustive subset pairs, generated/algebraic tests |
 | Hosted TIN behavior beyond inherited surface | Not observed in this increment | No authorized TIN instance supplied/queried |
@@ -119,15 +143,12 @@ This initial ledger records provenance, not a claim of full TIN equivalence.
 
 ## Next implementation gates
 
-1. Design a PostgreSQL metapage/segment directory and page/extent layout around the
-   standalone postings codec. Keep extension version and format version distinct.
-   The codec is only one component: ownership, locking, publication and recovery
-   contracts remain unresolved before wiring buffers into scans.
-2. Implement PostgreSQL-managed, WAL-safe bulk storage and exact term candidate
-   CTIDs. A build-only milestone must explicitly reject unsupported mutations or
-   maintain a provably correct fallback—silently stale postings are unacceptable.
-   Include HOT-root handling, partial/expression indexes, NULL/empty values and
-   rewrite semantics in the design.
+1. Extend the experimental metapage/immutable-segment design with bounded mutable
+   ingestion, selective dictionary addressing, generation replacement, merging and
+   safe reclamation. No immutable pages are reclaimed in this checkpoint.
+2. Broaden WAL publication fault-injection, sustained concurrent mutation and
+   all heap-rewrite testing. Verify resource failures leave no missing results;
+   existing local tests are necessary but not sufficient release evidence.
 3. Compare indexed term/Boolean results with the heap evaluator under concurrent
    snapshots and mutation workloads. Keep operator rechecks for unsupported
    positional/expansion semantics. Define the document universe before NOT.

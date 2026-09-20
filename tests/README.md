@@ -81,6 +81,6 @@ Coverage:
 - Both installation orders and both drop orders: the surviving provider keeps
   its index, operator, scoring, highlighting and index scan behavior.
 
-These are correctness/identity checks, not a performance claim. Plumb currently
-inherits Lead's lossy heap-page bitmap/recheck implementation, not a postings
-index or production TIN implementation.
+These are correctness/identity checks, not a performance claim. The default heap
+baseline coexists with Lead; [postings-demo.md](postings-demo.md) exercises the new
+opt-in persistent postings path. Neither is production-ready.

@@ -18,7 +18,9 @@ Existing Lead/TIN `tin` names and `==>` are left untouched.
 ```sql
 CREATE EXTENSION plumb;
 CREATE TABLE documents (id bigint PRIMARY KEY, body text);
-CREATE INDEX documents_plumb_idx ON documents USING plumb (body);
+-- Experimental persisted postings; omit WITH to keep the old heap baseline.
+CREATE INDEX documents_plumb_idx ON documents USING plumb (body)
+WITH (storage = 'postings_v1');
 SELECT id, plumb.full_score(ctid)
 FROM documents WHERE body ~~> 'search';
 ```
@@ -44,11 +46,13 @@ This investigation asks two questions:
 ## Current milestone
 
 - Retains Lead's TINQL, tokenizers, scoring/highlighting behavior and heap-backed access method, with independent Plumb SQL identities. Inherited behavior assertions are retained with name/operator substitutions; new tests enforce provider isolation.
-- Adds a standalone, zero-dependency [CTID postings core](postings/) with 256-page groups, page-presence masks, sparse tuple offsets and scalar union/intersection/set subtraction. It is tested against reference sets and **not yet connected to SQL scans**.
-- Adds an [experimental versioned postings codec](docs/postings-format.md) with CRC32C, canonical encoding, allocation-free validation and explicit decode limits. These are standalone bytes, **not a durable PostgreSQL index format**.
+- Uses the zero-dependency [CTID postings core](postings/) and [v1 codec](docs/postings-format.md) in an **opt-in persistent SQL index**. Term frames retain 256-page groups, page-presence masks and sparse tuple offsets, with no surrogate document-ID mapping.
+- Adds a versioned metapage and immutable linked term segments in PostgreSQL-managed MAIN-fork pages. Generic WAL writes segment pages before publishing the new head. Inserts append segments; exact candidates always undergo heap visibility and operator rechecks.
 - Adds a [reproducible PostgreSQL baseline](benches/README.md) with generated datasets, query plans and full result-set checks; no hosted service or proprietary test suite is required.
 
-**SQL execution is still Lead's deliberately slow implementation.** Every index scan returns all heap pages as candidates; PostgreSQL rechecks visible rows for exact TINQL and MVCC behavior. The SQL index stores no search data. There is no SQL speedup in this milestone. Persistent postings, WAL, online ingestion, VACUUM maintenance and production qualification remain future work.
+**The default remains the heap-backed compatibility baseline.** Explicit `WITH (storage = 'postings_v1')` enables the experimental stored-postings path for positive terms and AND/OR queries. Unsupported query shapes (including phrases, NOT and wildcard forms) fall back to all-heap-page rechecks. Scoring is still heap-backed.
+
+[Checkpoint 003 demonstrates a real database SELECT](docs/checkpoint-003-results.md): 30 exact matching heap pages out of 4,286, with a nonzero persistent index. This is a small synthetic proof, not a general performance or production-readiness claim. Run the [guarded SQL demonstration](tests/postings-demo.md) to reproduce it.
 
 The extension/package/library, schema and access method are `plumb`, version `0.1.0`. The standalone postings crate also starts at `0.1.0`; untouched language crates retain their upstream versions. This is not an in-place upgrade of an existing Lead/TIN index: create a separate Plumb index and deliberately migrate queries.
 
@@ -78,9 +82,18 @@ Scoring deliberately rescans and retokenizes the visible indexed column or expre
 
 ## Execution and storage today
 
-Each SQL index scan reads the table's current block count and adds every block to a lossy bitmap. PostgreSQL owns row visibility, query rechecks, and table maintenance. Index builds evaluate indexed expressions and predicates for validation and statistics; inserts and VACUUM have no search entries to maintain.
+- `storage='heap'` (default): original all-heap-page lossy recheck implementation, with no stored search postings.
+- `storage='postings_v1'` (opt-in): bulk-builds one immutable term segment; inserts append segments. Positive queries union each term across segments, combine grouped CTID sets and return exact bitmap candidates with mandatory heap recheck. No extension files live outside PostgreSQL relation storage.
+- A persisted metapage remains authoritative even if the reloption is toggled to `heap`. Converting a zero-page heap-baseline index to postings requires REINDEX; toggling a setting never silently skips maintenance.
+- Deletes/aborted writes can leave stale positive postings. MVCC/rechecks filter them; VACUUM does **not** reclaim index postings yet. Tested REINDEX compacts by rebuilding; tested TRUNCATE rebuilds an empty index.
 
-The inherited access method allocates no extension shared memory and creates no files outside PostgreSQL's normal relation storage. Server restarts and crash recovery do not require rebuilding these heap-backed Lead indexes: scans use the recovered heap directly. **That is not evidence of crash safety for future persistent Plumb postings.**
+### Hard limits and unsupported operations
+
+Postings mode currently accepts permanent heaps, the canonical text-search operator semantics, deterministic collation and the default analyzer only. Concurrent index build/reindex, temporary/unlogged storage and incompatible opclasses are rejected. Current limits include a 16 MiB document/segment cap, 262,144 build term/CTID pairs, 64 MiB committed index payload, 65,536 segments and 256 MiB physical index size. Queries have separate text/node/candidate limits and may error at a cap. Limits are not `work_mem`/RSS accounting; allocator overhead and transient buffers are additional.
+
+Every insert currently creates a small immutable segment; every postings query traverses committed segments. There is no mutable ingestion buffer, background merge, dead-posting reclamation, index-backed scoring, top-k, or robust large-dataset tuning yet. A local immediate-stop/WAL-redo test passed, but replication, PITR, cancellation at publication boundaries and long stress testing remain unproven. See [storage contract](docs/persistent-index-milestone.md) and [measured evidence/limitations](docs/checkpoint-003-results.md).
+
+These 0.1.0 checkpoints target fresh disposable databases. No extension upgrade scripts or production on-disk migration path are supplied; installing new files over an earlier loaded development version is not a tested upgrade procedure.
 
 ## Tests and measurements
 
@@ -97,7 +110,7 @@ cargo test --locked -p plumb-postings -p tinql -p tokenizer -p boldi-vigna
 cargo clippy --locked -p plumb-postings --all-targets -- -D warnings
 ```
 
-The [coexistence tests](tests/README.md) exercise Plumb alongside separately installed public Lead. The [baseline guide](benches/README.md) explains opt-in 100k, 1m and 10m-row SQL measurements and their resource limits. Scale up only on a disposable development database. The current implementation makes no large-dataset performance promise.
+The [persistent SELECT/mutation/recovery tests](tests/postings-demo.md) exercise the opt-in stored index. The [coexistence tests](tests/README.md) exercise Plumb alongside separately installed public Lead. The [baseline guide](benches/README.md) explains opt-in 100k, 1m and 10m-row SQL measurements and their resource limits. Scale up only on a disposable development database. The current implementation makes no large-dataset performance promise.
 
 The upstream private-regression helper scripts are retained unchanged for provenance; they still target upstream `tin` and are not supported Plumb commands or part of CI. This investigation uses public source/documentation and, only when separately authorized and supplied, black-box SQL observations—not proprietary TIN source or extracted binaries.
 

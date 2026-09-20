@@ -14,7 +14,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 // The full license text is available in LICENSE.
-// Modified by Plumb contributors on 2026-09-20: independent Plumb SQL identity and operator isolation.
+// Modified by Plumb contributors on 2026-09-20: experimental persistent index module wiring.
 use pgrx::pg_guard;
 
 ::pgrx::pg_module_magic!(name);
@@ -26,7 +26,11 @@ mod highlight_udfs;
 mod match_positions;
 mod operator;
 pub(crate) mod options;
+#[cfg(feature = "pg_test")]
+mod postings_tests;
 mod score;
+mod storage;
+mod term_index;
 mod tf_bucket;
 mod udfs;
 

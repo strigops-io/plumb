@@ -1,0 +1,109 @@
+{
+  "checkpoint": "003-persistent-select",
+  "platform": "x86-64 Linux",
+  "postgresql": "17.10",
+  "rust": "1.96.0",
+  "pgrx": "0.19.1",
+  "profile": "release",
+  "initial_demo_summary": [
+    {
+      "label": "index_stats",
+      "detail": {
+        "storage": "postings_v1",
+        "segments": 1,
+        "payload_bytes": 356427,
+        "format_version": 1,
+        "relation_blocks": 45
+      }
+    },
+    {
+      "label": "rare natural plan",
+      "detail": {
+        "node": "Bitmap Heap Scan",
+        "execution_ms": 3.764
+      }
+    },
+    {
+      "label": "demo rare: beacon",
+      "detail": {
+        "rows": 30,
+        "index_ms": 3.696,
+        "index_name": "docs_postings",
+        "index_node": "Bitmap Heap Scan",
+        "exact_blocks": 30,
+        "lossy_blocks": 0,
+        "sequential_ms": 629.889
+      }
+    },
+    {
+      "label": "rare summary",
+      "detail": {
+        "heap_blocks": 4286,
+        "expected_rows": 30,
+        "exact_heap_blocks": 30,
+        "lossy_heap_blocks": 0
+      }
+    }
+  ],
+  "recovery_before": {
+    "fsync": "on",
+    "index": {
+      "storage": "postings_v1",
+      "segments": 1,
+      "payload_bytes": 356427,
+      "format_version": 1,
+      "relation_blocks": 45
+    },
+    "phase": "before_immediate_stop",
+    "wal_lsn": "0/3F8F4A8",
+    "data_checksums": "on",
+    "concurrent_index": {
+      "storage": "postings_v1",
+      "segments": 230,
+      "payload_bytes": 53856,
+      "format_version": 1,
+      "relation_blocks": 231
+    },
+    "full_page_writes": "on"
+  },
+  "recovery_after": {
+    "index": {
+      "storage": "postings_v1",
+      "segments": 1,
+      "payload_bytes": 356427,
+      "format_version": 1,
+      "relation_blocks": 45
+    },
+    "phase": "after_recovery",
+    "concurrent_index": {
+      "storage": "postings_v1",
+      "segments": 230,
+      "payload_bytes": 53856,
+      "format_version": 1,
+      "relation_blocks": 231
+    }
+  },
+  "checks": {
+    "extension_tests": 73,
+    "extension_tests_in_postgresql": 42,
+    "pure_rust_tests": 377,
+    "release_postings_tests": 32,
+    "demo": 48,
+    "mutations": 346,
+    "edges": 16,
+    "coexistence": 54,
+    "post_restart_demo": 48,
+    "post_restart_mutations": 28,
+    "concurrent_writer_and_old_snapshot": "passed",
+    "concurrent_index_build": "explicitly rejected"
+  },
+  "timing_caveat": "Individual instrumented synthetic samples, not a controlled repeated benchmark or hosted TIN comparison.",
+  "not_proven": [
+    "production readiness",
+    "replication/PITR",
+    "publication crash/cancellation at every boundary",
+    "large datasets",
+    "PG18 runtime",
+    "ARM runtime"
+  ]
+}

@@ -14,7 +14,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 // The full license text is available in LICENSE.
-// Modified by Plumb contributors on 2026-09-20: independent Plumb SQL identity and operator isolation.
+// Modified by Plumb contributors on 2026-09-20: opt-in experimental persisted postings format.
 use pgrx::{pg_guard, pg_sys};
 use std::ffi::CStr;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -25,6 +25,9 @@ use tokenizer::{
 
 use crate::bm25::Bm25Params;
 use crate::udfs::MAX_TOKEN_BYTES;
+
+const STORAGE_HEAP: i32 = 0;
+const STORAGE_POSTINGS_V1: i32 = 1;
 
 const TOKENIZER_UNICODE: i32 = 0;
 const TOKENIZER_WHITESPACE: i32 = 1;
@@ -88,10 +91,17 @@ enum_members!(
     ("preserve", GAPS_PRESERVE)
 );
 
+enum_members!(
+    STORAGES,
+    ("heap", STORAGE_HEAP),
+    ("postings_v1", STORAGE_POSTINGS_V1)
+);
+
 #[repr(C)]
 struct IndexOptions {
     varlena_header: i32,
     initial_segment_count: i32,
+    storage: i32,
     tokenizer: i32,
     case_folding: i32,
     accent_folding: i32,
@@ -111,6 +121,15 @@ pub fn init() {
     let lock = pg_sys::ShareUpdateExclusiveLock as pg_sys::LOCKMODE;
     unsafe {
         let kind = pg_sys::add_reloption_kind();
+        pg_sys::add_enum_reloption(
+            kind,
+            c"storage".as_ptr(),
+            c"Experimental storage format; use REINDEX to switch persisted formats".as_ptr(),
+            (&raw mut STORAGES).cast(),
+            STORAGE_HEAP,
+            std::ptr::null(),
+            lock,
+        );
         pg_sys::add_int_reloption(
             kind,
             c"initial_segment_count".as_ptr(),
@@ -233,6 +252,11 @@ pub unsafe extern "C-unwind" fn amoptions(
     validate: bool,
 ) -> *mut pg_sys::bytea {
     let entries = [
+        parse_entry(
+            c"storage".as_ptr(),
+            pg_sys::relopt_type::RELOPT_TYPE_ENUM,
+            std::mem::offset_of!(IndexOptions, storage),
+        ),
         parse_entry(
             c"initial_segment_count".as_ptr(),
             pg_sys::relopt_type::RELOPT_TYPE_INT,
@@ -374,6 +398,27 @@ pub unsafe fn score_stop_words(index: pg_sys::Relation) -> Option<String> {
         .to_str()
         .ok()
         .map(str::to_owned)
+}
+
+/// Reloption is consulted only for new builds and missing-metapage rejection.
+pub unsafe fn postings_requested(index: pg_sys::Relation) -> bool {
+    unsafe { parsed(index) }.is_some_and(|o| o.storage == STORAGE_POSTINGS_V1)
+}
+
+pub unsafe fn validate_postings(index: pg_sys::Relation) {
+    if let Some(o) = unsafe { parsed(index) }
+        && (o.tokenizer != TOKENIZER_UNICODE
+            || o.case_folding != FOLDING_FOLD
+            || o.accent_folding != FOLDING_FOLD
+            || o.long_tokens != LONG_SPLIT
+            || o.max_token_bytes != 256
+            || o.graphemes != GRAPHEME_EMOJI
+            || o.position_gaps != GAPS_PRESERVE)
+    {
+        pgrx::error!(
+            "postings_v1 supports only the default analyzer; restore default tokenizer options and REINDEX"
+        );
+    }
 }
 
 #[cfg(test)]

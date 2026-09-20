@@ -1265,6 +1265,7 @@ dependencies = [
  "boldi-vigna",
  "pgrx",
  "pgrx-tests",
+ "plumb-postings",
  "rustc-hash",
  "thiserror",
  "tinql",

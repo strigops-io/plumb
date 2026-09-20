@@ -2,8 +2,9 @@
 
 This is a **standalone codec for one finite CTID set**. It is not yet a PostgreSQL
 relation format, metapage, term dictionary, segment directory, WAL record or
-committed persistent index. There is no SQL integration or production-format
-upgrade promise. Format versioning is independent from extension version 0.1.0.
+committed persistent index by itself. The experimental postings_v1 access method
+now embeds these frames in PostgreSQL-managed term segments; there is still no
+production-format upgrade promise. Format versioning is independent from extension version 0.1.0.
 
 The purpose is a small, explicit wire format and hostile-input validation boundary
 before introducing PostgreSQL-managed storage. The existing 256-page grouping is

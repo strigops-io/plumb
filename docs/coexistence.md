@@ -125,9 +125,10 @@ compatibility evidence. The following constraints are non-negotiable:
 
 ## Evidence and limits
 
-On PostgreSQL 17.10, native Plumb's 41 tests pass, including five new identity and
-operator-shadow regressions. [tests/coexistence.sql](../tests/coexistence.sql) passed
-54 checks against the unchanged **public Lead** extension: extension membership,
+On PostgreSQL 17.10, checkpoint 001 passed 41 extension tests, including five
+identity/operator-shadow regressions. Checkpoint 003 passes 73 extension tests
+with the persistent path added. [tests/coexistence.sql](../tests/coexistence.sql)
+again passed 54 checks against unchanged **public Lead**: extension membership,
 unchanged Lead procedures, same-table index routing, mixed scores/highlights,
 foreign-provider rejection, hostile search-path shadows, both installation orders
 and both drop orders. All test DDL was rolled back in a fresh disposable database.

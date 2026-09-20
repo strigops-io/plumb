@@ -1,4 +1,4 @@
-# Modified by Plumb contributors on 2026-09-20: independent package identity and version.
+# Modified by Plumb contributors on 2026-09-20: opt-in persistent postings dependency.
 [package]
 name = "plumb"
 description = "Plumb: independent PostgreSQL text-search proof of concept"
@@ -17,6 +17,7 @@ pg18 = ["pgrx/pg18", "pgrx-tests/pg18"]
 pg_test = []
 
 [dependencies]
+plumb-postings = { path = "../postings" }
 pgrx = "=0.19.1"
 rustc-hash.workspace = true
 thiserror.workspace = true

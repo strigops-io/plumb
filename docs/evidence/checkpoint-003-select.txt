@@ -1,0 +1,48 @@
+                                                        QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on docs  (cost=79.76..4206.35 rows=15001 width=4) (actual time=4.003..4.877 rows=30 loops=1)
+   Recheck Cond: (body ~~> 'beacon'::text)
+   Heap Blocks: exact=30
+   Buffers: shared hit=86
+   ->  Bitmap Index Scan on docs_postings  (cost=0.00..76.00 rows=3000 width=0) (actual time=3.912..3.912 rows=30 loops=1)
+         Index Cond: (body ~~> 'beacon'::text)
+         Buffers: shared hit=56
+ Planning:
+   Buffers: shared hit=74
+ Planning Time: 1.632 ms
+ Execution Time: 4.954 ms
+(11 rows)
+
+  id
+-------
+   997
+  1994
+  2991
+  3988
+  4985
+  5982
+  6979
+  7976
+  8973
+  9970
+ 10967
+ 11964
+ 12961
+ 13958
+ 14955
+ 15952
+ 16949
+ 17946
+ 18943
+ 19940
+ 20937
+ 21934
+ 22931
+ 23928
+ 24925
+ 25922
+ 26919
+ 27916
+ 28913
+ 29910
+(30 rows)

@@ -64,8 +64,10 @@ is **not a process RSS cap** and excludes allocator overhead and borrowed input.
 The encoder accepts a validated set and allocates its complete output, with no
 separate caller budget.
 
-This does not add dictionaries, metapages, PostgreSQL buffers, WAL, durable segment
-publication or SQL acceleration. The crate remains dependency-free and forbids
+This crate itself does not implement dictionaries, metapages, PostgreSQL buffers
+or WAL. The experimental adapter in postgres/src now embeds the codec in immutable
+term segments and can prune positive SQL queries; its separate constraints and
+validation are documented in docs/checkpoint-003-results.md. The crate remains dependency-free and forbids
 unsafe code; the separate allocation-failure test binary narrowly uses a documented
 unsafe allocator wrapper to exercise errors, not in library code.
 
