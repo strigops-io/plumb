@@ -9,6 +9,9 @@
 __pycache__/
 *.py[cod]
 /parity-results/
+search-engine-game/corpus.json
+search-engine-game/results.json
+search-engine-game/*.json
 .pgpass
 .pg_service.conf
 pg_service.conf

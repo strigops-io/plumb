@@ -1,0 +1,6 @@
+[
+  {"name": "engine", "value": "plumb"},
+  {"name": "version", "value": "0.1.0"},
+  {"name": "access_method", "value": "plumb"},
+  {"name": "operator", "value": "~~>"}
+]
