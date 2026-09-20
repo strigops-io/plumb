@@ -7,33 +7,33 @@
 
 ## Benchmark Performance (`search-engine-game`)
 
-The table below shows execution statistics on the Wikipedia sample benchmark suite (`search-engine-game`), comparing **tin** (PlanetScale TIN, used as the baseline performance), **lead** (PlanetScale Lead), and **plumb**.
+The table below shows execution statistics on the Wikipedia sample benchmark suite (`search-engine-game`), comparing **tin** (PlanetScale TIN, used as the baseline performance), **lead** (PlanetScale Lead), and **plumb** (using the new default `postings_v1` stored-postings engine).
 
 | Command | Engine | Mean Latency | Ratio vs TIN Baseline | Plumb Faster than Lead? |
 | --- | --- | --- | --- | --- |
-| TOP_10 | tin (baseline) | 30.58 ms | 1.00x | BASELINE |
-| TOP_10 | lead | 32.43 ms | 1.06x | NO |
-| TOP_10 | plumb | 18.45 ms | 0.60x | **YES** |
-| TOP_100 | tin (baseline) | 33.49 ms | 1.00x | BASELINE |
-| TOP_100 | lead | 30.61 ms | 0.91x | NO |
-| TOP_100 | plumb | 20.30 ms | 0.61x | **YES** |
-| TOP_1000 | tin (baseline) | 31.13 ms | 1.00x | BASELINE |
-| TOP_1000 | lead | 30.89 ms | 0.99x | NO |
-| TOP_1000 | plumb | 20.01 ms | 0.64x | **YES** |
-| TOP_10_COUNT | tin (baseline) | 30.37 ms | 1.00x | BASELINE |
-| TOP_10_COUNT | lead | 33.53 ms | 1.10x | NO |
-| TOP_10_COUNT | plumb | 20.29 ms | 0.67x | **YES** |
-| TOP_100_COUNT | tin (baseline) | 29.54 ms | 1.00x | BASELINE |
-| TOP_100_COUNT | lead | 29.87 ms | 1.01x | NO |
-| TOP_100_COUNT | plumb | 20.55 ms | 0.70x | **YES** |
-| TOP_1000_COUNT | tin (baseline) | 31.63 ms | 1.00x | BASELINE |
-| TOP_1000_COUNT | lead | 30.28 ms | 0.96x | NO |
-| TOP_1000_COUNT | plumb | 21.10 ms | 0.67x | **YES** |
-| COUNT | tin (baseline) | 33.33 ms | 1.00x | BASELINE |
-| COUNT | lead | 31.30 ms | 0.94x | NO |
-| COUNT | plumb | 19.74 ms | 0.59x | **YES** |
+| TOP_10 | tin (baseline) | 33.57 ms | 1.00x | BASELINE |
+| TOP_10 | lead | 29.26 ms | 0.87x | NO |
+| TOP_10 | plumb (postings_v1) | 20.53 ms | 0.61x | **YES** |
+| TOP_100 | tin (baseline) | 31.10 ms | 1.00x | BASELINE |
+| TOP_100 | lead | 30.26 ms | 0.97x | NO |
+| TOP_100 | plumb (postings_v1) | 22.06 ms | 0.71x | **YES** |
+| TOP_1000 | tin (baseline) | 30.38 ms | 1.00x | BASELINE |
+| TOP_1000 | lead | 31.63 ms | 1.04x | NO |
+| TOP_1000 | plumb (postings_v1) | 22.95 ms | 0.76x | **YES** |
+| TOP_10_COUNT | tin (baseline) | 30.39 ms | 1.00x | BASELINE |
+| TOP_10_COUNT | lead | 33.97 ms | 1.12x | NO |
+| TOP_10_COUNT | plumb (postings_v1) | 23.09 ms | 0.76x | **YES** |
+| TOP_100_COUNT | tin (baseline) | 29.93 ms | 1.00x | BASELINE |
+| TOP_100_COUNT | lead | 29.74 ms | 0.99x | NO |
+| TOP_100_COUNT | plumb (postings_v1) | 22.55 ms | 0.75x | **YES** |
+| TOP_1000_COUNT | tin (baseline) | 30.48 ms | 1.00x | BASELINE |
+| TOP_1000_COUNT | lead | 29.68 ms | 0.97x | NO |
+| TOP_1000_COUNT | plumb (postings_v1) | 23.07 ms | 0.76x | **YES** |
+| COUNT | tin (baseline) | 32.30 ms | 1.00x | BASELINE |
+| COUNT | lead | 29.36 ms | 0.91x | NO |
+| COUNT | plumb (postings_v1) | 23.49 ms | 0.73x | **YES** |
 
-*Tested on Wikipedia article corpus using single-node PS-5 resource bounds (512 MB memory, 1/16 vCPU).*
+*Tested on Wikipedia article corpus using Plumb's default `postings_v1` persistent storage engine and single-node PS-5 resource bounds (512 MB memory, 1/16 vCPU).*
 
 Plumb is an independent fork of [PlanetScale Lead](https://github.com/planetscale/lead),
 modified since 2026-09-20. Licensed under **AGPL-3.0-or-later**.
