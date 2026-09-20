@@ -33,6 +33,9 @@ mod score;
 mod storage;
 mod term_index;
 mod tf_bucket;
+mod topk;
+#[cfg(feature = "pg_test")]
+mod topk_tests;
 mod udfs;
 
 #[cfg(feature = "pg_test")]

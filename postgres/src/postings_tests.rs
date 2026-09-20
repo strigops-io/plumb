@@ -5,6 +5,283 @@
 mod tests {
     use pgrx::prelude::*;
 
+    // Planner may inspect a candidate it will not use. Application CRC errors
+    // fall back, but an actual index scan of the same relation remains fail-closed.
+    fn planner_corruption_fixture(metapage: bool) {
+        setup();
+        Spi::run("ANALYZE p_docs; SET LOCAL enable_seqscan=on; SET LOCAL enable_bitmapscan=off")
+            .unwrap();
+        let oid = Spi::get_one::<pg_sys::Oid>("SELECT 'p_docs_idx'::regclass::oid")
+            .unwrap()
+            .unwrap();
+        unsafe {
+            let index = pgrx::PgRelation::with_lock(oid, pg_sys::AccessShareLock as _);
+            crate::storage::damage_crc_for_test(index.as_ptr(), metapage);
+        }
+        let plan = Spi::get_one::<pgrx::Json>(
+            "EXPLAIN (FORMAT JSON) SELECT * FROM p_docs WHERE body ~~> 'beer'",
+        )
+        .unwrap()
+        .unwrap()
+        .0;
+        assert_eq!(plan[0]["Plan"]["Node Type"], "Seq Scan");
+        assert_eq!(
+            Spi::get_one::<i64>("SELECT count(*) FROM p_docs WHERE body ~~> 'beer'").unwrap(),
+            Some(2)
+        );
+        Spi::run("SET LOCAL enable_bitmapscan=on; SET LOCAL enable_seqscan=off").unwrap();
+        // EXPLAIN alone still succeeds while costing the corrupted index.
+        let plan = Spi::get_one::<pgrx::Json>(
+            "EXPLAIN (FORMAT JSON) SELECT * FROM p_docs WHERE body ~~> 'beer'",
+        )
+        .unwrap()
+        .unwrap()
+        .0;
+        assert_eq!(
+            plan[0]["Plan"]["Plans"][0]["Node Type"],
+            "Bitmap Index Scan"
+        );
+        let _ = Spi::get_one::<i64>("SELECT count(*) FROM p_docs WHERE body ~~> 'beer'");
+    }
+
+    #[pg_test(
+        error = "plumb postings storage is corrupt or unsupported: invalid metapage magic/version/length/checksum"
+    )]
+    fn postings_planner_metapage_corruption_fallback_executor_errors() {
+        planner_corruption_fixture(true);
+    }
+
+    #[pg_test(
+        error = "plumb postings storage is corrupt or unsupported: invalid segment chunk length/checksum"
+    )]
+    fn postings_planner_chunk_corruption_fallback_executor_errors() {
+        planner_corruption_fixture(false);
+    }
+
+    #[pg_test]
+    fn postings_planner_segment_budget_fallback_is_read_only() {
+        Spi::run("CREATE TABLE p_budget(body text); CREATE INDEX p_budget_idx ON p_budget USING plumb(body)").unwrap();
+        // Each command appends a separate one-term segment.
+        for _ in 0..33 {
+            Spi::run("INSERT INTO p_budget VALUES ('beer')").unwrap();
+        }
+        Spi::run("ANALYZE p_budget; SET LOCAL enable_seqscan=off").unwrap();
+        let before = Spi::get_one::<pgrx::JsonB>("SELECT plumb.index_stats('p_budget_idx')")
+            .unwrap()
+            .unwrap()
+            .0;
+        assert_eq!(before["segments"], 33);
+        let plan = Spi::get_one::<pgrx::Json>(
+            "EXPLAIN (FORMAT JSON) SELECT * FROM p_budget WHERE body ~~> 'beer'",
+        )
+        .unwrap()
+        .unwrap()
+        .0;
+        let bitmap = &plan[0]["Plan"]["Plans"][0];
+        assert_eq!(bitmap["Node Type"], "Bitmap Index Scan");
+        assert_eq!(bitmap["Plan Rows"], 3); // fallback selectivity .1, not physical count 33
+        let after = Spi::get_one::<pgrx::JsonB>("SELECT plumb.index_stats('p_budget_idx')")
+            .unwrap()
+            .unwrap()
+            .0;
+        assert_eq!(before, after);
+        assert_eq!(
+            Spi::get_one::<i64>("SELECT count(*) FROM p_budget WHERE body ~~> 'beer'").unwrap(),
+            Some(33)
+        );
+    }
+
+    #[pg_test]
+    fn postings_planner_directory_and_legacy_byte_budget_fallback() {
+        use plumb_postings::{Ctid, Postings, codec};
+        for version in [1, 2] {
+            Spi::run("CREATE TABLE p_byte_budget(body text); INSERT INTO p_byte_budget SELECT 'beer' FROM generate_series(1,100); CREATE INDEX p_byte_budget_idx ON p_byte_budget USING plumb(body); ANALYZE p_byte_budget; SET LOCAL enable_seqscan=off").unwrap();
+            let bytes = if version == 2 {
+                let mut builder = crate::term_index::Builder::default();
+                for n in 0..12000 {
+                    builder
+                        .add(&format!("word{n:06}"), Ctid::new(0, 1).unwrap())
+                        .unwrap();
+                }
+                let bytes = builder.finish().unwrap();
+                let directory_len = u32::from_le_bytes(bytes[20..24].try_into().unwrap());
+                assert!(directory_len > 256 * 1024);
+                bytes
+            } else {
+                // Valid v1 singleton dictionary with a large, sparse codec frame.
+                // This unqueried term is stale physical history, not heap truth.
+                let frame = codec::encode(&Postings::from_ctids(
+                    (0..10000).map(|n| Ctid::new(n * 65536, 1).unwrap()),
+                ))
+                .unwrap();
+                let term = b"unqueried";
+                let total = 20 + 8 + term.len() + frame.len() + 4;
+                assert!(total > 256 * 1024);
+                let mut bytes = b"PLMBTRM\0".to_vec();
+                for n in [1u32, 1, total as u32, term.len() as u32, frame.len() as u32] {
+                    bytes.extend_from_slice(&n.to_le_bytes());
+                }
+                bytes.extend_from_slice(term);
+                bytes.extend_from_slice(&frame);
+                let mut crc = plumb_postings::accel::Crc32c::new();
+                crc.update(&bytes);
+                bytes.extend_from_slice(&crc.finish().to_le_bytes());
+                bytes
+            };
+            let oid = Spi::get_one::<pg_sys::Oid>("SELECT 'p_byte_budget_idx'::regclass::oid")
+                .unwrap()
+                .unwrap();
+            unsafe {
+                let index = pgrx::PgRelation::with_lock(oid, pg_sys::AccessExclusiveLock as _);
+                crate::storage::append(index.as_ptr(), &bytes);
+                let q = crate::term_index::query("beer").unwrap().unwrap();
+                let mut counts = std::collections::BTreeMap::new();
+                crate::term_index::collect_terms(&q, &mut counts);
+                let error = crate::storage::visit_ranges_fallible(
+                    index.as_ptr(),
+                    32,
+                    256 * 1024,
+                    |reader| {
+                        crate::term_index::load_directory_fallible(reader.len(), |at, n| {
+                            reader.read_fallible(at, n)
+                        })
+                        .map(|_| ())
+                    },
+                )
+                .unwrap_err();
+                assert!(matches!(error, crate::storage::ReadError::Budget(_)));
+            }
+            let before =
+                Spi::get_one::<pgrx::JsonB>("SELECT plumb.index_stats('p_byte_budget_idx')")
+                    .unwrap()
+                    .unwrap()
+                    .0;
+            let plan = Spi::get_one::<pgrx::Json>(
+                "EXPLAIN (FORMAT JSON) SELECT * FROM p_byte_budget WHERE body ~~> 'beer'",
+            )
+            .unwrap()
+            .unwrap()
+            .0;
+            assert_eq!(
+                plan[0]["Plan"]["Plans"][0]["Node Type"],
+                "Bitmap Index Scan"
+            );
+            assert_eq!(plan[0]["Plan"]["Plans"][0]["Plan Rows"], 10);
+            let after =
+                Spi::get_one::<pgrx::JsonB>("SELECT plumb.index_stats('p_byte_budget_idx')")
+                    .unwrap()
+                    .unwrap()
+                    .0;
+            assert_eq!(before, after);
+            assert_eq!(
+                Spi::get_one::<i64>("SELECT count(*) FROM p_byte_budget WHERE body ~~> 'beer'")
+                    .unwrap(),
+                Some(100)
+            );
+            Spi::run("DROP TABLE p_byte_budget").unwrap();
+        }
+    }
+
+    // Added by Plumb contributors on 2026-09-20: v2 selective IO and advisory stats.
+    #[pg_test]
+    fn postings_v2_selective_absent_rare_buffer_io() {
+        Spi::run("CREATE TABLE p_selective(id int, body text);
+            INSERT INTO p_selective SELECT n, CASE WHEN n=100000 THEN 'common zzrare' ELSE 'common' END FROM generate_series(1,100000) n;
+            CREATE INDEX p_selective_idx ON p_selective USING plumb(body);
+            ANALYZE p_selective;
+            SET LOCAL enable_seqscan=off;").unwrap();
+        let blocks = Spi::get_one::<i64>(
+            "SELECT (plumb.index_stats('p_selective_idx')->>'relation_blocks')::bigint",
+        )
+        .unwrap()
+        .unwrap();
+        assert!(blocks > 20);
+        for (text, expected) in [
+            ("absent", 0),
+            ("zzrare", 1),
+            ("zzrare OR absent", 1),
+            ("common AND zzrare", 1),
+        ] {
+            let plan = Spi::get_one::<pgrx::Json>(&format!(
+                "EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) SELECT * FROM p_selective WHERE body ~~> {}",
+                pgrx::spi::quote_literal(text)
+            ))
+            .unwrap()
+            .unwrap()
+            .0;
+            let bitmap = &plan[0]["Plan"]["Plans"][0];
+            assert_eq!(bitmap["Node Type"], "Bitmap Index Scan");
+            // PG18 emits actual row counts as JSON floats; compare exact numeric values.
+            assert_eq!(
+                plan[0]["Plan"]["Actual Rows"].as_f64(),
+                Some(f64::from(expected))
+            );
+            if !text.starts_with("common") {
+                let buffers = bitmap["Shared Hit Blocks"].as_i64().unwrap_or(0)
+                    + bitmap["Shared Read Blocks"].as_i64().unwrap_or(0);
+                assert!(
+                    buffers < blocks / 2,
+                    "{text}: {buffers} buffers vs {blocks} full relation blocks"
+                );
+            }
+        }
+        let stats = Spi::get_one::<pgrx::JsonB>(
+            "SELECT plumb.term_stats('p_selective_idx','zzrare OR absent')",
+        )
+        .unwrap()
+        .unwrap()
+        .0;
+        assert_eq!(stats["physical_count_upper_bounds"]["zzrare"], 1);
+        assert_eq!(stats["physical_count_upper_bounds"]["absent"], 0);
+        assert_eq!(stats["term_versions"]["v1"], 0);
+        assert!(stats["term_versions"]["v2"].as_i64().unwrap() > 0);
+        assert!(stats["read_payload_bytes"].as_i64().unwrap() < blocks * 8192 / 2);
+    }
+
+    #[pg_test]
+    fn postings_term_stats_stale_after_delete_abort_and_default_mutations() {
+        setup();
+        Spi::run("ANALYZE p_docs; DELETE FROM p_docs WHERE id=1;
+            DO $$ BEGIN BEGIN INSERT INTO p_docs VALUES(99,'aborted beer');
+            RAISE EXCEPTION 'rollback stats test'; EXCEPTION WHEN raise_exception THEN NULL; END; END $$;
+            INSERT INTO p_docs VALUES(6,'craft beer');").unwrap();
+        let stats =
+            Spi::get_one::<pgrx::JsonB>("SELECT plumb.term_stats('p_docs_idx','beer OR aborted')")
+                .unwrap()
+                .unwrap()
+                .0;
+        assert_eq!(stats["physical_count_upper_bounds"]["beer"], 4);
+        assert_eq!(stats["physical_count_upper_bounds"]["aborted"], 1);
+        assert_eq!(stats["exact_visible_df"], false);
+        assert_eq!(stats["stale_history"], true);
+        assert_eq!(ids("beer"), vec![3, 6]);
+        assert!(ids("aborted").is_empty());
+        Spi::run("SELECT plumb.merge_index('p_docs_idx')").unwrap();
+        let after =
+            Spi::get_one::<pgrx::JsonB>("SELECT plumb.term_stats('p_docs_idx','beer OR aborted')")
+                .unwrap()
+                .unwrap()
+                .0;
+        assert_eq!(after["segments"], 1);
+        assert_eq!(
+            after["physical_count_upper_bounds"],
+            stats["physical_count_upper_bounds"]
+        );
+    }
+
+    #[pg_test(error = "must be owner of index to inspect plumb term statistics")]
+    fn postings_term_stats_requires_owner() {
+        setup();
+        Spi::run("CREATE ROLE p_stats_nonowner; GRANT USAGE ON SCHEMA plumb TO p_stats_nonowner; SET LOCAL ROLE p_stats_nonowner").unwrap();
+        let _ = Spi::get_one::<pgrx::JsonB>("SELECT plumb.term_stats('p_docs_idx','beer')");
+    }
+
+    #[pg_test(error = "term_stats supports only positive term/AND/OR/boost queries")]
+    fn postings_term_stats_rejects_unsupported_shape() {
+        setup();
+        let _ = Spi::get_one::<pgrx::JsonB>("SELECT plumb.term_stats('p_docs_idx','bee*')");
+    }
+
     fn ids(query: &str) -> Vec<i32> {
         Spi::get_one::<Vec<i32>>(&format!(
             "SELECT coalesce(array_agg(id ORDER BY id), '{{}}'::int[]) FROM p_docs WHERE body ~~> {}",
@@ -56,7 +333,10 @@ mod tests {
         assert_eq!(plan[0]["Plan"]["Node Type"], "Bitmap Heap Scan");
         assert_eq!(plan[0]["Plan"]["Exact Heap Blocks"], 1);
         assert_eq!(plan[0]["Plan"]["Lossy Heap Blocks"], 0);
-        assert_eq!(plan[0]["Plan"]["Plans"][0]["Actual Rows"], 2);
+        assert_eq!(
+            plan[0]["Plan"]["Plans"][0]["Actual Rows"].as_f64(),
+            Some(2.0)
+        );
     }
 
     #[pg_test]
@@ -391,7 +671,10 @@ mod tests {
         .unwrap()
         .0;
         assert_eq!(plan[0]["Plan"]["Lossy Heap Blocks"], 0);
-        assert_eq!(plan[0]["Plan"]["Plans"][0]["Actual Rows"], 2);
+        assert_eq!(
+            plan[0]["Plan"]["Plans"][0]["Actual Rows"].as_f64(),
+            Some(2.0)
+        );
     }
 
     #[pg_test]

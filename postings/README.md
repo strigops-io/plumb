@@ -19,7 +19,8 @@ term dictionary or complete query executor. It has no third-party dependencies.
   incorrectly remove other tuples on those pages.
 
 All fields are private. Public constructors and immutable set operations preserve
-these invariants. There is no surrogate document-ID mapping and no unsafe code.
+these invariants. There is no surrogate document-ID mapping. Public APIs are safe; unsafe intrinsics
+are isolated to a private runtime-checked acceleration backend.
 
 ```rust
 use plumb_postings::{Ctid, Postings};
@@ -67,8 +68,8 @@ separate caller budget.
 This crate itself does not implement dictionaries, metapages, PostgreSQL buffers
 or WAL. The experimental adapter in postgres/src now embeds the codec in immutable
 term segments and can prune positive SQL queries; its separate constraints and
-validation are documented in docs/checkpoint-003-results.md. The crate remains dependency-free and forbids
-unsafe code; the separate allocation-failure test binary narrowly uses a documented
+validation are documented in docs/checkpoint-003-results.md. The crate remains dependency-free and denies unsafe code outside its narrowly
+allowed private acceleration backend; the separate allocation-failure test binary narrowly uses a documented
 unsafe allocator wrapper to exercise errors, not in library code.
 
 ## Validation
@@ -91,3 +92,12 @@ and allocation-free rejection. All 32 postings tests/doctests pass in debug and
 release builds. These establish set/codec behavior, not PostgreSQL MVCC or durability.
 
 AGPL-3.0-or-later; see the repository's LICENSE.
+
+## Acceleration policy
+
+`accel::Crc32c` provides incremental runtime-dispatched SSE4.2 CRC32C with portable
+fallback. IEEE CRC32 uses its own fast portable polynomial implementation. Existing
+wire bytes and checksum golden values are unchanged. Default 256-page mask AND/OR
+remain scalar after measurement showed per-call AVX2 dispatch slower; explicit
+experimental accelerated calls remain for parity tests and future batching work.
+38 postings tests/doctests pass in debug/release; AArch64 compilation passes.

@@ -1,0 +1,1375 @@
+{
+  "status": "passed",
+  "schema": "plumb_postings_freshness",
+  "run_id": "74cf8e2b-b407-4d25-8199-71d6581651ae",
+  "database": "plumb_postings_checkpoint004",
+  "host": "/agent/workspace/default-merge-socket",
+  "port": 55441,
+  "started_at": "2026-09-20T02:09:43.354898+00:00",
+  "reads": [
+    {
+      "label": "baseline_persistent",
+      "pid": 75694,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fa7f5b9"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fa7f5b9"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "baseline_persistent_repeat",
+      "pid": 75694,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fa7f5b9"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fa7f5b9"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "baseline_fresh_oracle",
+      "pid": 75700,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75700,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fa7f5b9"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75700,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75700,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fa7f5b9"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fa7f5b9"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75700,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_insert_persistent",
+      "pid": 75694,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_insert_persistent_repeat",
+      "pid": 75694,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_insert_fresh_oracle",
+      "pid": 75703,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75703,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75703,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75703,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75703,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "rr_anchor_preexisting_beacon",
+      "pid": 75697,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_update_persistent",
+      "pid": 75694,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,21)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,22)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,23)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,24)",
+                "float4_bits": "3f83ca92"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3f83ca92"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_update_persistent_repeat",
+      "pid": 75694,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,21)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,22)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,23)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,24)",
+                "float4_bits": "3f83ca92"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3f83ca92"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_update_fresh_oracle",
+      "pid": 75706,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75706,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,21)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,22)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,23)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,24)",
+                "float4_bits": "3f83ca92"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75706,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75706,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3f83ca92"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3f83ca92"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75706,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "rr_after_update_commit",
+      "pid": 75697,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_delete_persistent",
+      "pid": 75694,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fca4c33"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fca4c33"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_delete_persistent_repeat",
+      "pid": 75694,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fca4c33"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fca4c33"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75694,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "after_delete_fresh_oracle",
+      "pid": 75709,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75709,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fca4c33"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75709,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75709,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fca4c33"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75709,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "rr_after_delete_commit",
+      "pid": 75697,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fe55860"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fe55860"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75697,
+            "isolation": "repeatable read",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    },
+    {
+      "label": "former_rr_now_fresh_rc",
+      "pid": 75697,
+      "queries": {
+        "full_score": {
+          "before": {
+            "pid": 75697,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fca4c33"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75697,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        },
+        "top_k": {
+          "before": {
+            "pid": 75697,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          },
+          "result": {
+            "rows": [
+              {
+                "ctid": "(0,1)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,2)",
+                "float4_bits": "3fca4c33"
+              },
+              {
+                "ctid": "(0,3)",
+                "float4_bits": "3fca4c33"
+              }
+            ],
+            "xid_in_statement": null
+          },
+          "after": {
+            "pid": 75697,
+            "isolation": "read committed",
+            "read_only": "on",
+            "statement_timeout": "30s",
+            "xid": null
+          }
+        }
+      },
+      "exact_top_k_match": true
+    }
+  ],
+  "stages": [
+    {
+      "label": "baseline",
+      "corpus": {
+        "n": 12,
+        "df": 3,
+        "all_two_tokens": true,
+        "anchor": {
+          "ctid": "(0,1)",
+          "body": "beacon steady"
+        },
+        "select_permission": true
+      },
+      "oracle_pid": 75700,
+      "anchor_bits": "3fa7f5b9",
+      "anchor_score": 1.312186360359192,
+      "exact_fresh_backend_match": true
+    },
+    {
+      "label": "after_insert",
+      "corpus": {
+        "n": 20,
+        "df": 3,
+        "all_two_tokens": true,
+        "anchor": {
+          "ctid": "(0,1)",
+          "body": "beacon steady"
+        },
+        "select_permission": true
+      },
+      "oracle_pid": 75703,
+      "anchor_bits": "3fe55860",
+      "anchor_score": 1.7917594909667969,
+      "exact_fresh_backend_match": true
+    },
+    {
+      "label": "after_update",
+      "corpus": {
+        "n": 20,
+        "df": 7,
+        "all_two_tokens": true,
+        "anchor": {
+          "ctid": "(0,1)",
+          "body": "beacon steady"
+        },
+        "select_permission": true
+      },
+      "oracle_pid": 75706,
+      "anchor_bits": "3f83ca92",
+      "anchor_score": 1.0296194553375244,
+      "exact_fresh_backend_match": true
+    },
+    {
+      "label": "after_delete",
+      "corpus": {
+        "n": 16,
+        "df": 3,
+        "all_two_tokens": true,
+        "anchor": {
+          "ctid": "(0,1)",
+          "body": "beacon steady"
+        },
+        "select_permission": true
+      },
+      "oracle_pid": 75709,
+      "anchor_bits": "3fca4c33",
+      "anchor_score": 1.580450415611267,
+      "exact_fresh_backend_match": true
+    }
+  ],
+  "mutations": [
+    {
+      "label": "insert_nonmatching",
+      "sql": "INSERT INTO plumb_postings_freshness.docs SELECT n,'copper steady' FROM generate_series(13,20) n;",
+      "committed": true
+    },
+    {
+      "label": "update_nonmatching_to_beacon",
+      "sql": "UPDATE plumb_postings_freshness.docs SET body='beacon steady' WHERE id BETWEEN 4 AND 7;",
+      "committed": true
+    },
+    {
+      "label": "delete_matching",
+      "sql": "DELETE FROM plumb_postings_freshness.docs WHERE id BETWEEN 4 AND 7;",
+      "committed": true
+    }
+  ],
+  "sql": {
+    "full_score": "WITH ranked AS MATERIALIZED (\n SELECT ctid,plumb.full_score(ctid) AS score FROM plumb_postings_freshness.docs\n WHERE body OPERATOR(pg_catalog.~~>) 'beacon'\n)\nSELECT json_build_object('rows',coalesce(json_agg(json_build_object(\n 'ctid',ctid::text,'float4_bits',encode(float4send(score::real),'hex'))\n ORDER BY score DESC,ctid ASC),'[]'::json),\n 'xid_in_statement',txid_current_if_assigned()::text) FROM ranked;",
+    "top_k": "SELECT json_build_object('rows',coalesce(json_agg(json_build_object(\n 'ctid',q.ctid::text,'float4_bits',encode(float4send(q.score),'hex'))\n ORDER BY ord),'[]'::json),'xid_in_statement',txid_current_if_assigned()::text)\n FROM plumb.top_k('plumb_postings_freshness.docs_default'::regclass,'beacon',3)\n WITH ORDINALITY AS q(ctid,score,ord);"
+  },
+  "method": "Exact ordered CTIDs and float4send hex; no tolerance; read-only owner sessions; new backend oracle per committed stage; no role/RLS coverage.",
+  "environment": {
+    "version": "PostgreSQL 17.10 on x86_64-amazon-linux-gnu, compiled by gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-5), 64-bit",
+    "server_version_num": 170010,
+    "role": "vercel-sandbox",
+    "superuser": true,
+    "extension_version": "0.1.0"
+  },
+  "schema_created": true,
+  "initial_index_stats": {
+    "storage": "postings_v1",
+    "segments": 1,
+    "payload_bytes": 384,
+    "format_version": 1,
+    "relation_blocks": 2
+  },
+  "cleanup_errors": [],
+  "finished_at": "2026-09-20T02:10:34.419218+00:00",
+  "initial_setup_attempt": {
+    "status": "failed",
+    "error": "Default index is not v2",
+    "traceback": "Traceback (most recent call last):\n  File \"/agent/workspace/plumb/tests/scoring_freshness.py\", line 198, in main\n    require(summary['initial_index_stats']['format_version'] == 2, 'Default index is not v2')\n  File \"/agent/workspace/plumb/tests/postings_concurrency.py\", line 47, in require\n    raise RuntimeError(message)\nRuntimeError: Default index is not v2\n",
+    "finished_at": "2026-09-20T02:09:43.374396+00:00"
+  },
+  "continuation_note": "Harness v2 check corrected: index_stats.format_version is metapage v1; term_stats.term_versions proves v2. Continue only this invocation newly-created fixture, matching original run marker and exact untouched baseline; no schema/object deletion or recreation. Normal executable still refuses all existing schemas.",
+  "initial_term_stats": {
+    "note": "Physical counts include dead, aborted and duplicate histories. Estimate is an advisory upper-bound heuristic capped by catalog reltuples when known, not snapshot-visible df. V2 statistics validate directory pages, not unread posting frames.",
+    "segments": 1,
+    "stale_history": true,
+    "term_versions": {
+      "v1": 0,
+      "v2": 1
+    },
+    "exact_visible_df": false,
+    "read_payload_bytes": 384,
+    "estimated_cardinality": 3.0,
+    "query_physical_upper_bound": 3,
+    "physical_count_upper_bounds": {
+      "beacon": 3
+    }
+  },
+  "pids": {
+    "writer": 75691,
+    "persistent_rc": 75694,
+    "old_rr": 75697
+  },
+  "rr_snapshot": "821:821:",
+  "idf_change_verified": true,
+  "rr_old_snapshot_exact_match": true,
+  "final_index_stats": {
+    "storage": "postings_v1",
+    "segments": 13,
+    "payload_bytes": 3264,
+    "format_version": 1,
+    "relation_blocks": 14
+  },
+  "script_sha256": "72c33f43bc48fe0059f67639d8f123e45bc6d4d33e74b2f063ed3da822c63b3e"
+}

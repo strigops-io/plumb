@@ -27,6 +27,9 @@ Modifications in this investigation include:
   scans, online append maintenance, metadata inspection and database recovery tests;
 - bounded batched bulk builds, wire-size-aware document admission, owner-authorized
   immutable segment merging and heap-first DDL lock ordering;
+- selective version-2 term directories, advisory physical statistics and costing;
+- runtime-dispatched checksums, tested experimental SIMD masks, exact bounded top-k,
+  caller-snapshot/ACL/RLS scoring safeguards and real PostgreSQL 18 runtime testing;
 - development-dataset baseline tooling, CI changes and investigation documentation.
 
 The inherited language crates retain their original authorship and version metadata.

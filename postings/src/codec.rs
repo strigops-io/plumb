@@ -393,16 +393,11 @@ pub fn decode(bytes: &[u8], limits: DecodeLimits) -> Result<Postings, CodecError
 }
 
 fn crc32c<'a>(parts: impl IntoIterator<Item = &'a [u8]>) -> u32 {
-    let mut crc = u32::MAX;
+    let mut crc = crate::accel::Crc32c::new();
     for part in parts {
-        for &byte in part {
-            crc ^= u32::from(byte);
-            for _ in 0..8 {
-                crc = (crc >> 1) ^ (0x82f6_3b78 & 0u32.wrapping_sub(crc & 1));
-            }
-        }
+        crc.update(part);
     }
-    !crc
+    crc.finish()
 }
 
 fn frame_checksum(bytes: &[u8]) -> Result<u32, CodecError> {

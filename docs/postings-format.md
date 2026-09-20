@@ -98,8 +98,10 @@ The encoder emits one canonical representation for a given CTID set.
   returned object on the stack, process overhead and allocator metadata are not
   charged. Limits are not PostgreSQL memory-context or work_mem accounting.
 - Decode work is linear in bounded input bytes plus validated output elements.
-  No recursion, unsafe code, decompression bombs, new third-party dependencies or
-  unchecked indexing into untrusted slices. There is no cryptographic guarantee.
+  The parser uses safe Rust with no recursion, decompression bombs, new third-party
+  dependencies or unchecked indexing into untrusted slices. Checkpoint 005 adds a
+  narrowly isolated runtime-checked unsafe checksum backend behind safe APIs;
+  unsupported CPUs retain the scalar path. There is no cryptographic guarantee.
 - Encode accepts an already validated in-memory set. Check u32/u64 field limits,
   total output size, arithmetic overflow and allocation errors; it has no separate
   caller budget and produces a complete output vector.

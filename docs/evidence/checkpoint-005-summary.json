@@ -1,0 +1,285 @@
+{
+  "checkpoint": "005-query-optimization-review",
+  "matrix": {
+    "pg17": "17.10: 170 passed",
+    "pg18": "18.6: 170 passed"
+  },
+  "pure_rust_tests": 383,
+  "release_postings_tests": 38,
+  "arm": "AArch64 compile only",
+  "archive_audit": "001-004 byte-identical to HEAD; permission-dropping extraction causes mode-only diffs",
+  "growth_queries": [
+    {
+      "query": "beacon",
+      "baseline_ms": 18.192,
+      "newcode_v1_ms": 7.459,
+      "v2_execution_ms": {
+        "median": 2.071,
+        "min": 2.066,
+        "max": 2.164,
+        "range": 0.09800000000000031,
+        "samples": [
+          2.164,
+          2.066,
+          2.071
+        ]
+      },
+      "v2_planning_ms": {
+        "median": 0.948,
+        "min": 0.92,
+        "max": 0.975,
+        "range": 0.05499999999999994,
+        "samples": [
+          0.975,
+          0.948,
+          0.92
+        ]
+      },
+      "rows": 200,
+      "stats": {
+        "note": "Physical counts include dead, aborted and duplicate histories. Estimate is an advisory upper-bound heuristic capped by catalog reltuples when known, not snapshot-visible df. V2 statistics validate directory pages, not unread posting frames.",
+        "segments": 16,
+        "stale_history": true,
+        "term_versions": {
+          "v1": 0,
+          "v2": 16
+        },
+        "exact_visible_df": false,
+        "read_payload_bytes": 129920,
+        "estimated_cardinality": 200.0,
+        "query_physical_upper_bound": 200,
+        "physical_count_upper_bounds": {
+          "beacon": 200
+        }
+      },
+      "index_nodes": [
+        {
+          "Node Type": "Bitmap Index Scan",
+          "Index Name": "docs_default",
+          "Plan Rows": 200,
+          "Actual Rows": 200,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 41,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        }
+      ]
+    },
+    {
+      "query": "absentmarker",
+      "baseline_ms": 16.073,
+      "newcode_v1_ms": 5.538,
+      "v2_execution_ms": {
+        "median": 0.19,
+        "min": 0.184,
+        "max": 0.192,
+        "range": 0.008000000000000007,
+        "samples": [
+          0.19,
+          0.192,
+          0.184
+        ]
+      },
+      "v2_planning_ms": {
+        "median": 0.975,
+        "min": 0.962,
+        "max": 1.012,
+        "range": 0.050000000000000044,
+        "samples": [
+          1.012,
+          0.962,
+          0.975
+        ]
+      },
+      "rows": 0,
+      "stats": {
+        "note": "Physical counts include dead, aborted and duplicate histories. Estimate is an advisory upper-bound heuristic capped by catalog reltuples when known, not snapshot-visible df. V2 statistics validate directory pages, not unread posting frames.",
+        "segments": 16,
+        "stale_history": true,
+        "term_versions": {
+          "v1": 0,
+          "v2": 16
+        },
+        "exact_visible_df": false,
+        "read_payload_bytes": 129920,
+        "estimated_cardinality": 0.0,
+        "query_physical_upper_bound": 0,
+        "physical_count_upper_bounds": {
+          "absentmarker": 0
+        }
+      },
+      "index_nodes": [
+        {
+          "Node Type": "Bitmap Index Scan",
+          "Index Name": "docs_default",
+          "Plan Rows": 1,
+          "Actual Rows": 0,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 26,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        }
+      ]
+    },
+    {
+      "query": "beacon AND copper",
+      "baseline_ms": 20.887,
+      "newcode_v1_ms": 8.735,
+      "v2_execution_ms": {
+        "median": 3.398,
+        "min": 3.351,
+        "max": 3.424,
+        "range": 0.07299999999999995,
+        "samples": [
+          3.398,
+          3.351,
+          3.424
+        ]
+      },
+      "v2_planning_ms": {
+        "median": 0.958,
+        "min": 0.911,
+        "max": 0.976,
+        "range": 0.06499999999999995,
+        "samples": [
+          0.958,
+          0.911,
+          0.976
+        ]
+      },
+      "rows": 100,
+      "stats": {
+        "note": "Physical counts include dead, aborted and duplicate histories. Estimate is an advisory upper-bound heuristic capped by catalog reltuples when known, not snapshot-visible df. V2 statistics validate directory pages, not unread posting frames.",
+        "segments": 16,
+        "stale_history": true,
+        "term_versions": {
+          "v1": 0,
+          "v2": 16
+        },
+        "exact_visible_df": false,
+        "read_payload_bytes": 129920,
+        "estimated_cardinality": 200.0,
+        "query_physical_upper_bound": 200,
+        "physical_count_upper_bounds": {
+          "beacon": 200,
+          "copper": 100000
+        }
+      },
+      "index_nodes": [
+        {
+          "Node Type": "Bitmap Index Scan",
+          "Index Name": "docs_default",
+          "Plan Rows": 200,
+          "Actual Rows": 100,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 88,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        }
+      ]
+    },
+    {
+      "query": "beacon OR markerone",
+      "baseline_ms": 19.767,
+      "newcode_v1_ms": 8.606,
+      "v2_execution_ms": {
+        "median": 3.258,
+        "min": 3.227,
+        "max": 3.334,
+        "range": 0.1070000000000002,
+        "samples": [
+          3.334,
+          3.258,
+          3.227
+        ]
+      },
+      "v2_planning_ms": {
+        "median": 1.035,
+        "min": 0.985,
+        "max": 1.068,
+        "range": 0.08300000000000007,
+        "samples": [
+          1.035,
+          1.068,
+          0.985
+        ]
+      },
+      "rows": 201,
+      "stats": {
+        "note": "Physical counts include dead, aborted and duplicate histories. Estimate is an advisory upper-bound heuristic capped by catalog reltuples when known, not snapshot-visible df. V2 statistics validate directory pages, not unread posting frames.",
+        "segments": 16,
+        "stale_history": true,
+        "term_versions": {
+          "v1": 0,
+          "v2": 16
+        },
+        "exact_visible_df": false,
+        "read_payload_bytes": 129920,
+        "estimated_cardinality": 201.0,
+        "query_physical_upper_bound": 201,
+        "physical_count_upper_bounds": {
+          "beacon": 200,
+          "markerone": 1
+        }
+      },
+      "index_nodes": [
+        {
+          "Node Type": "Bitmap Index Scan",
+          "Index Name": "docs_default",
+          "Plan Rows": 201,
+          "Actual Rows": 201,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 42,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        }
+      ]
+    }
+  ],
+  "caveat": "3 warm synthetic samples; execution excludes planning; no production/WAND/ARM-runtime claim",
+  "topk": {
+    "exact_bits_and_order_match": true,
+    "reference_ms": {
+      "median": 948.847,
+      "min": 935.138,
+      "max": 1013.361,
+      "range": 78.22299999999996,
+      "samples": [
+        948.847,
+        935.138,
+        1013.361
+      ]
+    },
+    "top_k_ms": {
+      "median": 494.644,
+      "min": 492.448,
+      "max": 498.229,
+      "range": 5.781000000000006,
+      "samples": [
+        498.229,
+        494.644,
+        492.448
+      ]
+    }
+  }
+}

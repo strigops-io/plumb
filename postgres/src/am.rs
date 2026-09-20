@@ -437,9 +437,22 @@ unsafe extern "C-unwind" fn amgetbitmap(
         }
         if supported {
             unsafe {
-                crate::storage::visit(index, |payload| {
-                    checked(crate::term_index::accumulate(payload, &mut terms))
-                });
+                checked(crate::storage::visit_ranges(
+                    index,
+                    crate::storage::MAX_SEGMENTS,
+                    128 * 1024 * 1024,
+                    |reader| {
+                        let directory =
+                            crate::term_index::load_directory(reader.len(), |offset, len| {
+                                reader.read(offset, len)
+                            })?;
+                        crate::term_index::accumulate_ranges(
+                            &directory,
+                            |offset, len| reader.read(offset, len),
+                            &mut terms,
+                        )
+                    },
+                ));
             }
             let mut result: Option<plumb_postings::Postings> = None;
             for query in queries {
@@ -650,5 +663,241 @@ unsafe extern "C-unwind" fn amcostestimate(
         *selectivity = 0.1;
         *correlation = 0.0;
         *pages = (tuples / 512.0).ceil();
+        if let Some((upper, read_bytes)) = planner_term_estimate(path) {
+            *selectivity = (upper as f64 / tuples).min(1.0);
+            *pages = (read_bytes as f64 / pg_sys::BLCKSZ as f64).ceil().max(1.0);
+            *startup = *pages * pg_sys::seq_page_cost;
+            *total = (*startup + upper as f64 * pg_sys::cpu_operator_cost) * loop_count.max(1.0);
+        }
+    }
+}
+
+// Modified by Plumb contributors on 2026-09-20: bounded advisory directory statistics.
+struct TermCounts {
+    counts: std::collections::BTreeMap<String, u64>,
+    versions: [u32; 2],
+    read_bytes: usize,
+    selected_bytes: usize,
+}
+unsafe fn term_counts(
+    index: pg_sys::Relation,
+    queries: &[tinql::runtime::Query],
+    max_segments: u32,
+    max_bytes: usize,
+) -> Result<TermCounts, crate::storage::ReadError> {
+    let mut terms = std::collections::BTreeMap::new();
+    for query in queries {
+        crate::term_index::collect_terms(query, &mut terms);
+    }
+    if terms.len() > 256 {
+        return Err(crate::storage::ReadError::Budget(
+            "term statistics exceeds 256 terms",
+        ));
+    }
+    let mut result = TermCounts {
+        counts: terms.into_keys().map(|term| (term, 0)).collect(),
+        versions: [0, 0],
+        read_bytes: 0,
+        selected_bytes: 0,
+    };
+    result.read_bytes = unsafe {
+        crate::storage::visit_ranges_fallible(index, max_segments, max_bytes, |reader| {
+            let directory = crate::term_index::load_directory_fallible(reader.len(), |at, n| {
+                reader.read_fallible(at, n)
+            })?;
+            result.versions[directory.version() as usize - 1] += 1;
+            result.selected_bytes +=
+                crate::term_index::selected_frame_bytes(&directory, &result.counts);
+            crate::term_index::physical_counts(&directory, &mut result.counts)
+                .map_err(crate::storage::ReadError::Corruption)
+        })?
+    };
+    Ok(result)
+}
+
+/// Owner-only physical history inspection. Catalog hint, heap lock, then index
+/// lock matches DDL ordering. No heap scan and no SPI, including planner callers.
+#[pg_extern(sql = "
+    CREATE FUNCTION @extschema@.term_stats(index regclass, query text)
+        RETURNS jsonb
+        VOLATILE STRICT PARALLEL UNSAFE
+        LANGUAGE c AS 'MODULE_PATHNAME', '@FUNCTION_NAME@';
+")]
+fn term_stats(index: pg_sys::Oid, query: &str) -> pgrx::JsonB {
+    unsafe {
+        let heap_oid = pg_sys::IndexGetRelation(index, true);
+        if heap_oid == pg_sys::InvalidOid {
+            pgrx::error!("plumb.term_stats requires a plumb index");
+        }
+        let heap = pgrx::PgRelation::with_lock(heap_oid, pg_sys::AccessShareLock as _);
+        let locked = pgrx::PgRelation::with_lock(index, pg_sys::AccessShareLock as _);
+        let relation = locked.as_ptr();
+        if (*(*relation).rd_rel).relkind != pg_sys::RELKIND_INDEX as i8
+            || (*(*relation).rd_rel).relam != pg_sys::get_am_oid(c"plumb".as_ptr(), false)
+            || (*relation).rd_index.is_null()
+        {
+            pgrx::error!("plumb.term_stats requires a plumb index");
+        }
+        let definition = &*(*relation).rd_index;
+        if definition.indrelid != heap.oid() || definition.indexrelid != index {
+            pgrx::error!("term_stats index identity changed; retry");
+        }
+        if !pg_sys::object_ownercheck(pg_sys::RelationRelationId, index, pg_sys::GetUserId()) {
+            pgrx::ereport!(
+                pgrx::PgLogLevel::ERROR,
+                pgrx::PgSqlErrorCode::ERRCODE_INSUFFICIENT_PRIVILEGE,
+                "must be owner of index to inspect plumb term statistics"
+            );
+        }
+        if !definition.indisvalid || !definition.indisready || !definition.indislive {
+            pgrx::error!("term_stats requires a valid ready live index");
+        }
+        validate_heap(heap.as_ptr());
+        crate::options::validate_postings(relation);
+        validate_postings_semantics(relation);
+        let query = checked(crate::term_index::query(query)).unwrap_or_else(|| {
+            pgrx::error!("term_stats supports only positive term/AND/OR/boost queries")
+        });
+        let stats = checked(
+            term_counts(
+                relation,
+                std::slice::from_ref(&query),
+                crate::storage::MAX_SEGMENTS,
+                128 * 1024 * 1024,
+            )
+            .map_err(|e| e.to_string()),
+        );
+        let upper = crate::term_index::count_upper_bound(&query, &stats.counts);
+        // Use catalog reltuples only: no plan-time or inspection heap scan.
+        let catalog_tuples = (*(*heap.as_ptr()).rd_rel).reltuples;
+        let estimate = if catalog_tuples >= 0.0 {
+            (upper as f64).min(catalog_tuples as f64)
+        } else {
+            upper as f64
+        };
+        let mut json = pgrx::JsonB(r#"{
+            "physical_count_upper_bounds": {}, "term_versions": {},
+            "exact_visible_df": false, "stale_history": true,
+            "note": "Physical counts include dead, aborted and duplicate histories. Estimate is an advisory upper-bound heuristic capped by catalog reltuples when known, not snapshot-visible df. V2 statistics validate directory pages, not unread posting frames."
+        }"#.parse().expect("statistics JSON"));
+        json.0["segments"] = stats.versions.iter().sum::<u32>().into();
+        json.0["term_versions"]["v1"] = stats.versions[0].into();
+        json.0["term_versions"]["v2"] = stats.versions[1].into();
+        json.0["query_physical_upper_bound"] = upper.into();
+        json.0["estimated_cardinality"] = estimate.into();
+        json.0["read_payload_bytes"] = stats.read_bytes.into();
+        for (term, count) in stats.counts {
+            json.0["physical_count_upper_bounds"][term] = count.into();
+        }
+        json
+    }
+}
+
+// Only these application-defined failures are advisory. This does not catch a
+// PostgreSQL ERROR or panic (in particular cancellation, IO, OOM, or privileges).
+#[allow(clippy::manual_ok_err)] // Exhaustive policy: a new error kind must be reviewed, not silently swallowed.
+fn advisory_counts<T>(result: Result<T, crate::storage::ReadError>) -> Option<T> {
+    match result {
+        Ok(value) => Some(value),
+        Err(crate::storage::ReadError::Corruption(_) | crate::storage::ReadError::Budget(_)) => {
+            None
+        }
+    }
+}
+
+/// The planner already holds relation locks for IndexOptInfo. Open ONLY the index
+/// with NoLock, never acquire heap locks in the opposite order. Node and Datum
+/// types are checked before any cast/detoast. Unsupported shapes use old costing.
+unsafe fn planner_term_estimate(path: *mut pg_sys::IndexPath) -> Option<(u64, usize)> {
+    unsafe {
+        let info = (*path).indexinfo;
+        if info.is_null() {
+            return None;
+        }
+        let clauses = pgrx::PgList::<pg_sys::IndexClause>::from_pg((*path).indexclauses);
+        if clauses.is_empty() || clauses.len() > 16 {
+            return None;
+        }
+        let mut queries = Vec::new();
+        for clause in clauses.iter_ptr() {
+            if clause.is_null() || (*clause).indexcol != 0 {
+                return None;
+            }
+            let quals = pgrx::PgList::<pg_sys::RestrictInfo>::from_pg((*clause).indexquals);
+            for qual in quals.iter_ptr() {
+                if qual.is_null() {
+                    return None;
+                }
+                let expr = (*qual).clause;
+                if expr.is_null() || (*expr).type_ != pg_sys::NodeTag::T_OpExpr {
+                    return None;
+                }
+                let op = &*expr.cast::<pg_sys::OpExpr>();
+                if op.opno != crate::operator::search_operator_oid() {
+                    return None;
+                }
+                let args = pgrx::PgList::<pg_sys::Node>::from_pg(op.args);
+                if args.len() != 2 {
+                    return None;
+                }
+                let arg = args.get_ptr(1)?;
+                if arg.is_null() || (*arg).type_ != pg_sys::NodeTag::T_Const {
+                    return None;
+                }
+                let value = &*arg.cast::<pg_sys::Const>();
+                if value.constisnull
+                    || value.consttype != pg_sys::TEXTOID
+                    || value.constbyval
+                    || value.constlen != -1
+                {
+                    return None;
+                }
+                if pg_sys::toast_raw_datum_size(value.constvalue)
+                    > crate::term_index::MAX_QUERY_BYTES + 4
+                {
+                    return None;
+                }
+                let text = <&str as pgrx::FromDatum>::from_datum(value.constvalue, false)?;
+                queries.push(crate::term_index::query(text).ok()??);
+                if queries.len() > 16 {
+                    return None;
+                }
+            }
+        }
+        if queries.is_empty() {
+            return None;
+        }
+        let index = pgrx::PgRelation::with_lock((*info).indexoid, pg_sys::NoLock as _);
+        let relation = index.as_ptr();
+        let result = advisory_counts(term_counts(relation, &queries, 32, 256 * 1024))?;
+        let upper = queries
+            .iter()
+            .map(|q| crate::term_index::count_upper_bound(q, &result.counts))
+            .min()?;
+        Some((upper, result.read_bytes + result.selected_bytes))
+    }
+}
+
+#[cfg(test)]
+mod advisory_tests {
+    use super::*;
+    #[test]
+    fn known_corruption_and_budget_use_conservative_cost_fallback() {
+        use crate::storage::ReadError;
+        assert_eq!(advisory_counts(Ok(42)), Some(42));
+        assert_eq!(
+            advisory_counts::<u32>(Err(ReadError::Corruption("invalid metapage CRC".into()))),
+            None
+        );
+        assert_eq!(
+            advisory_counts::<u32>(Err(ReadError::Budget("segment budget"))),
+            None
+        );
+        assert_eq!(
+            advisory_counts::<u32>(Err(ReadError::Budget("read byte budget"))),
+            None
+        );
+        // No catch_unwind / PgTryBuilder exists here: PG ERROR never becomes a
+        // known application error merely because it arose while estimating.
     }
 }

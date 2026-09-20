@@ -35,6 +35,47 @@ The Git history is non-shallow. Checkpoint archives are validated after extracti
 for Git integrity and a clean working tree. The `origin` remote remains the public
 fork URL; no authentication credentials are included or needed to inspect history.
 
+## When extraction appears to create uncommitted files
+
+Some ZIP extractors preserve bytes but drop Unix executable bits. An audit of
+checkpoints 001–004 found every tracked file byte-identical to its committed blob;
+only these executable files appeared modified after permission-dropping extraction:
+
+- script/materialize-private-regress
+- script/run-private-regress
+- tests/merge_concurrency.py (checkpoint 004)
+
+First inspect, without changing anything:
+
+```sh
+git diff --summary
+git diff --numstat
+git -c core.filemode=false status --short
+```
+
+`100755 => 100644` with `0 0` in numstat is a mode-only change. On Unix, restore only
+those known executable flags (this does not change content):
+
+```sh
+chmod +x script/materialize-private-regress script/run-private-regress
+# Checkpoint 004 and later, if present:
+chmod +x tests/merge_concurrency.py
+```
+
+New checkpoints include a conservative helper:
+
+```sh
+python3 script/check-checkpoint-permissions.py        # report only
+python3 script/check-checkpoint-permissions.py --fix  # only byte-identical files
+```
+
+The helper never resets contents, stages files, follows symlinks or changes Git
+configuration. Modified/missing files are reported and left untouched. A filesystem
+that cannot preserve Unix executable bits may still report mode differences; the
+command-scoped core.filemode diagnostic above checks this without changing global
+or repository settings. Do not use `git reset --hard` to hide unexplained changes.
+If actual content differs, inspect and retain it before any restoration.
+
 ## Bring a checkpoint into an existing fork
 
 Start with a clean working tree and inspect the differences before merging. Use

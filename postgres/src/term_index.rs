@@ -76,7 +76,7 @@ pub struct Builder {
     terms: BTreeMap<String, Vec<Ctid>>,
     logical_bytes: usize,
     pairs: usize,
-    // Upper bound excluding the 24-byte dictionary envelope. CTID page/group
+    // Upper bound excluding the 36-byte v2 dictionary envelope. CTID page/group
     // runs overcount revisits, but equal the codec cost for ordered heap scans.
     wire_bytes: usize,
 }
@@ -133,12 +133,12 @@ impl Builder {
             wire_bytes = wire_bytes.checked_add(
                 posting_wire_growth(existing.and_then(|tids| tids.last().copied()), document.tid)
                     + if existing.is_none() {
-                        8 + term.len()
+                        16 + term.len()
                     } else {
                         0
                     },
             )?;
-            if pairs > MAX_PAIRS || bytes > MAX_BYTES || wire_bytes > MAX_BYTES - 24 {
+            if pairs > MAX_PAIRS || bytes > MAX_BYTES || wire_bytes > MAX_BYTES - 36 {
                 return None;
             }
         }
@@ -184,44 +184,55 @@ impl Builder {
         if self.terms.is_empty() {
             return Ok(Vec::new());
         }
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(MAGIC);
-        bytes.extend_from_slice(&1u32.to_le_bytes());
-        bytes.extend_from_slice(&(self.terms.len() as u32).to_le_bytes());
-        bytes.extend_from_slice(&0u32.to_le_bytes());
+        let term_count = self.terms.len();
+        let directory_len = V2_HEADER + 4 + self.terms.keys().map(|t| 16 + t.len()).sum::<usize>();
+        if directory_len > MAX_BYTES {
+            return Err("v2 directory exceeds 16 MiB".into());
+        }
+        let mut directory = vec![0; V2_HEADER];
+        let mut frames = Vec::new();
         for (term, tids) in self.terms {
             check_interrupts();
-            let frame = codec::encode(&Postings::from_ctids(tids)).map_err(|e| e.to_string())?;
-            if bytes.len() + 8 + term.len() + frame.len() + 4 > MAX_BYTES {
+            let postings = Postings::from_ctids(tids);
+            let frame = codec::encode(&postings).map_err(|e| e.to_string())?;
+            let offset = directory_len + frames.len();
+            if offset + frame.len() > MAX_BYTES {
                 return Err("postings_v1 encoded term segment exceeds 16 MiB".into());
             }
-            bytes.extend_from_slice(&(term.len() as u32).to_le_bytes());
-            bytes.extend_from_slice(&(frame.len() as u32).to_le_bytes());
-            bytes.extend_from_slice(term.as_bytes());
-            bytes.extend_from_slice(&frame);
+            for value in [term.len(), offset, frame.len(), postings.len()] {
+                directory.extend_from_slice(&(value as u32).to_le_bytes());
+            }
+            directory.extend_from_slice(term.as_bytes());
+            frames.extend_from_slice(&frame);
         }
-        let len = (bytes.len() + 4) as u32;
-        bytes[16..20].copy_from_slice(&len.to_le_bytes());
-        let crc = crc32c(&bytes);
-        bytes.extend_from_slice(&crc.to_le_bytes());
+        directory[..8].copy_from_slice(MAGIC);
+        for (at, value) in [
+            (8, 2),
+            (12, term_count as u32),
+            (16, (directory_len + frames.len()) as u32),
+            (20, directory_len as u32),
+        ] {
+            directory[at..at + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        let header_crc = crc32c(&directory[..28]);
+        directory[28..32].copy_from_slice(&header_crc.to_le_bytes());
+        let directory_crc = crc32c(&directory);
+        directory.extend_from_slice(&directory_crc.to_le_bytes());
+        let mut bytes = directory;
+        bytes.extend_from_slice(&frames);
         Ok(bytes)
     }
 }
 
-// Castagnoli polynomial. Covers header, dictionary names, lengths AND all frames.
-// The trailing CRC field itself is excluded, as in conventional CRC envelopes.
+// Castagnoli checksum: v1 covers the whole payload; v2 has independent fixed
+// header and complete directory checksums. Posting frames retain their own CRC.
 fn crc32c(bytes: &[u8]) -> u32 {
-    let mut crc = !0u32;
-    for (position, &byte) in bytes.iter().enumerate() {
-        if position % 65536 == 0 {
-            check_interrupts();
-        }
-        crc ^= u32::from(byte);
-        for _ in 0..8 {
-            crc = (crc >> 1) ^ (0x82f63b78 & 0u32.wrapping_sub(crc & 1));
-        }
+    let mut crc = plumb_postings::accel::Crc32c::new();
+    for chunk in bytes.chunks(65536) {
+        check_interrupts();
+        crc.update(chunk);
     }
-    !crc
+    crc.finish()
 }
 
 fn take<'a>(data: &mut &'a [u8], n: usize) -> Result<&'a [u8], String> {
@@ -238,7 +249,7 @@ fn u32le(data: &mut &[u8]) -> Result<u32, String> {
 
 /// Walk the entire validated dictionary/envelope. The caller decides which
 /// frames to decode; merge must decode every frame, unlike query accumulation.
-fn visit_frames(
+fn visit_frames_v1(
     bytes: &[u8],
     mut visit: impl FnMut(&str, &[u8]) -> Result<(), String>,
 ) -> Result<(), String> {
@@ -293,12 +304,13 @@ fn decode_frame(frame: &[u8], remaining_pairs: usize) -> Result<Postings, String
     .map_err(|e| format!("postings_v1 frame: {e}"))
 }
 
-/// Validate the complete dictionary even when no query term occurs in it.
-/// Decode only matching frames; the envelope CRC covers skipped frames as well.
+/// Full-memory compatibility/test path: v1 validates the whole envelope and
+/// matching frames, v2 validates every frame. Executor uses accumulate_ranges.
 pub fn accumulate(bytes: &[u8], terms: &mut BTreeMap<String, Postings>) -> Result<(), String> {
     visit_frames(bytes, |term, frame| {
         if let Some(existing) = terms.get_mut(term) {
             let decoded = decode_frame(frame, MAX_PAIRS)?;
+            validate_heap_offsets(&decoded)?;
             // Bound before allocation: conservative even if sets overlap.
             if existing.len() + decoded.len() > MAX_PAIRS {
                 return Err(
@@ -325,6 +337,21 @@ fn max_heap_offset() -> usize {
     let aligned_header = (tuple_header + alignment - 1) & !(alignment - 1);
     (pg_sys::BLCKSZ as usize - std::mem::offset_of!(pg_sys::PageHeaderData, pd_linp))
         / (aligned_header + std::mem::size_of::<pg_sys::ItemIdData>())
+}
+
+// Validate every selected frame before any union/Boolean operation, even when
+// another term or scan key will make the final candidate bitmap empty.
+fn validate_heap_offsets(decoded: &Postings) -> Result<(), String> {
+    let max_offset = max_heap_offset();
+    for (n, tid) in decoded.iter().enumerate() {
+        if n % 1024 == 0 {
+            check_interrupts();
+        }
+        if usize::from(tid.offset()) > max_offset {
+            return Err("postings_v1 frame contains an impossible heap tuple offset".into());
+        }
+    }
+    Ok(())
 }
 
 /// Consolidate physical candidates only: no visibility/age/heap decisions.
@@ -354,14 +381,7 @@ pub fn merge_payloads(payloads: &[Vec<u8>]) -> Result<Vec<u8>, String> {
             if decoded.is_empty() {
                 return Err("noncanonical postings_v1 empty term frame".into());
             }
-            for (n, tid) in decoded.iter().enumerate() {
-                if n % 1024 == 0 {
-                    check_interrupts();
-                }
-                if usize::from(tid.offset()) > max_heap_offset() {
-                    return Err("postings_v1 frame contains an impossible heap tuple offset".into());
-                }
-            }
+            validate_heap_offsets(&decoded)?;
             merged.pairs += decoded.len();
             // Appending duplicates is bounded by the *input* count. finish's
             // Postings::from_ctids sorts/unions each term into canonical v1.
@@ -508,9 +528,536 @@ fn evaluate_budget(
     }
 }
 
+// Added by Plumb contributors on 2026-09-20: independently checked v2 directory.
+const V2_HEADER: usize = 32;
+#[derive(Debug)]
+struct Entry {
+    offset: usize,
+    length: usize,
+    count: usize,
+}
+#[derive(Debug)]
+pub struct Directory {
+    entries: BTreeMap<String, Entry>,
+}
+
+fn word(bytes: &[u8], at: usize) -> u32 {
+    u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap())
+}
+fn v2_header(bytes: &[u8], total: usize) -> Result<(usize, usize), String> {
+    if bytes.len() != V2_HEADER
+        || &bytes[..8] != MAGIC
+        || word(bytes, 8) != 2
+        || word(bytes, 16) as usize != total
+        || total > MAX_BYTES
+        || word(bytes, 24) != 0
+        || crc32c(&bytes[..28]) != word(bytes, 28)
+    {
+        return Err("invalid v2 term header/version/length/checksum".into());
+    }
+    let count = word(bytes, 12) as usize;
+    let dir_len = word(bytes, 20) as usize;
+    if count == 0
+        || count > MAX_PAIRS
+        || dir_len < V2_HEADER + 4
+        || dir_len > total
+        || count > (dir_len - V2_HEADER - 4) / 17
+    {
+        return Err("invalid v2 directory count/length".into());
+    }
+    Ok((count, dir_len))
+}
+fn parse_directory(bytes: &[u8], total: usize) -> Result<Directory, String> {
+    if bytes.len() < V2_HEADER + 4 {
+        return Err("truncated v2 directory".into());
+    }
+    let (count, dir_len) = v2_header(&bytes[..V2_HEADER], total)?;
+    if bytes.len() != dir_len || crc32c(&bytes[..dir_len - 4]) != word(bytes, dir_len - 4) {
+        return Err("v2 term directory CRC32C mismatch".into());
+    }
+    let mut data = &bytes[V2_HEADER..dir_len - 4];
+    let mut entries = BTreeMap::new();
+    let mut previous = String::new();
+    let mut expected_offset = dir_len;
+    let mut pairs = 0usize;
+    for _ in 0..count {
+        check_interrupts();
+        let term_len = u32le(&mut data)? as usize;
+        let offset = u32le(&mut data)? as usize;
+        let length = u32le(&mut data)? as usize;
+        let count = u32le(&mut data)? as usize;
+        let term =
+            std::str::from_utf8(take(&mut data, term_len)?).map_err(|_| "non-UTF8 v2 term")?;
+        if term.is_empty()
+            || term.len() > 256
+            || term <= previous.as_str()
+            || offset != expected_offset
+            || length < 40
+            || count == 0
+            || count > MAX_PAIRS
+        {
+            return Err("noncanonical v2 term/order/offset/length/count".into());
+        }
+        expected_offset = offset
+            .checked_add(length)
+            .filter(|&n| n <= total)
+            .ok_or("v2 frame range exceeds segment")?;
+        pairs = pairs
+            .checked_add(count)
+            .filter(|&n| n <= MAX_PAIRS)
+            .ok_or("v2 directory pair count exceeds bound")?;
+        previous = term.to_owned();
+        entries.insert(
+            term.to_owned(),
+            Entry {
+                offset,
+                length,
+                count,
+            },
+        );
+    }
+    if !data.is_empty() || expected_offset != total {
+        return Err("v2 directory trailing bytes/frame length mismatch".into());
+    }
+    Ok(Directory { entries })
+}
+
+pub enum LoadedDirectory {
+    Legacy(Vec<u8>),
+    V2(Directory),
+}
+impl LoadedDirectory {
+    pub fn version(&self) -> u32 {
+        match self {
+            Self::Legacy(_) => 1,
+            Self::V2(_) => 2,
+        }
+    }
+}
+/// Exactly one directory parse per segment for all query terms. v1 has a whole
+/// payload checksum and necessarily retains its legacy full-read path.
+pub fn load_directory(
+    total: usize,
+    read: impl FnMut(usize, usize) -> Result<Vec<u8>, String>,
+) -> Result<LoadedDirectory, String> {
+    load_directory_fallible(total, read)
+}
+
+/// Keep read errors typed for advisory callers; only parser errors become E.
+pub fn load_directory_fallible<E: From<String>>(
+    total: usize,
+    mut read: impl FnMut(usize, usize) -> Result<Vec<u8>, E>,
+) -> Result<LoadedDirectory, E> {
+    if !(24..=MAX_BYTES).contains(&total) {
+        return Err(String::from("invalid term segment size").into());
+    }
+    let prefix = read(0, 12)?;
+    if &prefix[..8] != MAGIC {
+        return Err(String::from("unsupported term segment magic").into());
+    }
+    match word(&prefix, 8) {
+        1 => {
+            let bytes = read(0, total)?;
+            visit_frames_v1(&bytes, |_, frame| {
+                decode_frame(frame, MAX_PAIRS).map(|_| ())
+            })?;
+            Ok(LoadedDirectory::Legacy(bytes))
+        }
+        2 => {
+            let header = read(0, V2_HEADER)?;
+            let (_, length) = v2_header(&header, total)?;
+            Ok(LoadedDirectory::V2(parse_directory(
+                &read(0, length)?,
+                total,
+            )?))
+        }
+        _ => Err(String::from("unsupported term segment version").into()),
+    }
+}
+fn add_frame(
+    term: &str,
+    frame: &[u8],
+    count: Option<usize>,
+    terms: &mut BTreeMap<String, Postings>,
+) -> Result<(), String> {
+    if let Some(existing) = terms.get_mut(term) {
+        let decoded = decode_frame(frame, MAX_PAIRS)?;
+        validate_heap_offsets(&decoded)?;
+        if count.is_some_and(|n| n != decoded.len()) {
+            return Err("v2 directory/frame posting count mismatch".into());
+        }
+        if existing.len() + decoded.len() > MAX_PAIRS {
+            return Err(
+                "postings_v1 query candidate limit exceeded (262144 CTIDs per term)".into(),
+            );
+        }
+        *existing = existing.union(&decoded);
+    }
+    if terms.values().map(Postings::len).sum::<usize>() > MAX_PAIRS {
+        return Err(
+            "postings_v1 query materialization limit exceeded (262144 term/CTID pairs)".into(),
+        );
+    }
+    Ok(())
+}
+pub fn accumulate_ranges(
+    directory: &LoadedDirectory,
+    mut read: impl FnMut(usize, usize) -> Result<Vec<u8>, String>,
+    terms: &mut BTreeMap<String, Postings>,
+) -> Result<(), String> {
+    match directory {
+        LoadedDirectory::Legacy(bytes) => accumulate(bytes, terms),
+        LoadedDirectory::V2(directory) => {
+            let keys: Vec<_> = terms.keys().cloned().collect();
+            for term in keys {
+                check_interrupts();
+                if let Some(entry) = directory.entries.get(&term) {
+                    add_frame(
+                        &term,
+                        &read(entry.offset, entry.length)?,
+                        Some(entry.count),
+                        terms,
+                    )?;
+                }
+            }
+            Ok(())
+        }
+    }
+}
+/// Advisory sums over physical segment histories, never snapshot-visible df.
+pub fn physical_counts(
+    directory: &LoadedDirectory,
+    counts: &mut BTreeMap<String, u64>,
+) -> Result<(), String> {
+    match directory {
+        LoadedDirectory::Legacy(bytes) => visit_frames_v1(bytes, |term, frame| {
+            if let Some(count) = counts.get_mut(term) {
+                *count += decode_frame(frame, MAX_PAIRS)?.len() as u64;
+            }
+            Ok(())
+        }),
+        LoadedDirectory::V2(directory) => {
+            for (term, count) in counts {
+                if let Some(entry) = directory.entries.get(term) {
+                    *count += entry.count as u64;
+                }
+            }
+            Ok(())
+        }
+    }
+}
+pub fn selected_frame_bytes(directory: &LoadedDirectory, counts: &BTreeMap<String, u64>) -> usize {
+    match directory {
+        LoadedDirectory::Legacy(_) => 0, // Already read in full.
+        LoadedDirectory::V2(directory) => counts
+            .keys()
+            .filter_map(|term| directory.entries.get(term))
+            .map(|entry| entry.length + 2 * 8192)
+            .sum(), // conservative boundary pages
+    }
+}
+pub fn count_upper_bound(query: &Query, counts: &BTreeMap<String, u64>) -> u64 {
+    match query {
+        Query::Term(term) => counts[term],
+        Query::Boost { inner, .. } => count_upper_bound(inner, counts),
+        Query::And(a, b) => count_upper_bound(a, counts).min(count_upper_bound(b, counts)),
+        Query::Or(a, b) => {
+            count_upper_bound(a, counts).saturating_add(count_upper_bound(b, counts))
+        }
+        Query::Conjunction(children) => children
+            .iter()
+            .map(|q| count_upper_bound(q, counts))
+            .min()
+            .unwrap_or(0),
+        Query::Disjunction { min: 1, children } => children
+            .iter()
+            .map(|q| count_upper_bound(q, counts))
+            .fold(0u64, u64::saturating_add),
+        _ => unreachable!("only positive bounded queries"),
+    }
+}
+fn visit_frames(
+    bytes: &[u8],
+    mut visit: impl FnMut(&str, &[u8]) -> Result<(), String>,
+) -> Result<(), String> {
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    if bytes.len() < 12 {
+        return Err("truncated term header".into());
+    }
+    match word(bytes, 8) {
+        1 => visit_frames_v1(bytes, visit),
+        2 => {
+            if bytes.len() < V2_HEADER {
+                return Err("truncated v2 header".into());
+            }
+            let (_, n) = v2_header(&bytes[..V2_HEADER], bytes.len())?;
+            let directory = parse_directory(&bytes[..n], bytes.len())?;
+            for (term, entry) in directory.entries {
+                check_interrupts();
+                let frame = &bytes[entry.offset..entry.offset + entry.length];
+                if decode_frame(frame, MAX_PAIRS)?.len() != entry.count {
+                    return Err("v2 directory/frame posting count mismatch".into());
+                }
+                visit(&term, frame)?;
+            }
+            Ok(())
+        }
+        _ => Err("unsupported term segment version".into()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_impossible_offsets_fail_before_boolean_or_scan_key_intersection() {
+        let maximum = u16::try_from(max_heap_offset()).unwrap();
+        for version in [1, 2] {
+            for impossible in [maximum + 1, u16::MAX] {
+                let mut bytes = if version == 1 {
+                    legacy_payload("beer", Ctid::new(0, maximum).unwrap())
+                } else {
+                    payload("beer", Ctid::new(0, maximum).unwrap())
+                };
+                let start = if version == 1 {
+                    28 + "beer".len()
+                } else {
+                    word(&bytes, 20) as usize
+                };
+                let end = bytes.len() - if version == 1 { 4 } else { 0 };
+                bytes[start + 78..start + 80].copy_from_slice(&impossible.to_le_bytes());
+                let crc = crc32c(&[&bytes[start..start + 36], &bytes[start + 40..end]].concat());
+                bytes[start + 36..start + 40].copy_from_slice(&crc.to_le_bytes());
+                if version == 1 {
+                    let crc = crc32c(&bytes[..end]);
+                    bytes[end..].copy_from_slice(&crc.to_le_bytes());
+                }
+                // The frame and all enclosing checksums are valid: PG physical
+                // offset validation, not codec/CRC rejection, must catch this.
+                assert_eq!(
+                    decode_frame(&bytes[start..end], MAX_PAIRS)
+                        .unwrap()
+                        .iter()
+                        .next()
+                        .unwrap()
+                        .offset(),
+                    impossible
+                );
+                let dir =
+                    load_directory(bytes.len(), |at, n| Ok(bytes[at..at + n].to_vec())).unwrap();
+                for keys in [
+                    vec!["beer"],
+                    vec!["beer AND absent"],
+                    vec!["absent", "beer"],
+                ] {
+                    let queries: Vec<_> = keys
+                        .into_iter()
+                        .map(|text| query(text).unwrap().unwrap())
+                        .collect();
+                    let mut terms = BTreeMap::new();
+                    for q in &queries {
+                        collect_terms(q, &mut terms);
+                    }
+                    assert!(
+                        evaluate(
+                            &query("absent").unwrap().unwrap(),
+                            &BTreeMap::from([("absent".into(), Postings::default())])
+                        )
+                        .unwrap()
+                        .is_empty()
+                    );
+                    let error =
+                        accumulate_ranges(&dir, |at, n| Ok(bytes[at..at + n].to_vec()), &mut terms)
+                            .unwrap_err();
+                    assert!(
+                        error.contains("impossible heap tuple offset"),
+                        "v{version}: {error}"
+                    );
+                    let error = accumulate(&bytes, &mut terms).unwrap_err();
+                    assert!(error.contains("impossible heap tuple offset"));
+                }
+                // An unselected v2 frame remains deliberately outside validation.
+                let mut absent = BTreeMap::from([("absent".into(), Postings::default())]);
+                accumulate_ranges(
+                    &dir,
+                    |_, _| panic!("absent term must not read a frame"),
+                    &mut absent,
+                )
+                .unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn advisory_directory_preserves_typed_read_budget_and_corruption() {
+        use crate::storage::ReadError;
+        for error in [
+            ReadError::Budget("test byte budget"),
+            ReadError::Corruption("test chunk CRC".into()),
+        ] {
+            let result = load_directory_fallible(100, |_, _| Err(error.clone()));
+            assert!(matches!(result, Err(ref actual) if actual == &error));
+        }
+        let error = load_directory_fallible(100, |_, n| Ok::<_, ReadError>(vec![0; n]));
+        assert!(matches!(error, Err(ReadError::Corruption(_))));
+    }
+
+    #[test]
+    fn ranged_v2_absent_and_rare_read_only_directory_and_selected_frames() {
+        let mut builder = one_term_builder(100_000);
+        builder.add("zzrare", tid(100_001)).unwrap();
+        let bytes = builder.finish().unwrap();
+        let dir_len = word(&bytes, 20) as usize;
+        for text in ["absent", "zzrare", "zzrare OR absent", "beer AND zzrare"] {
+            let mut reads = Vec::new();
+            let directory = load_directory(bytes.len(), |at, n| {
+                reads.push((at, n));
+                Ok(bytes[at..at + n].to_vec())
+            })
+            .unwrap();
+            assert!(reads.iter().all(|(at, n)| at + n <= dir_len));
+            let before = reads.len();
+            let query = query(text).unwrap().unwrap();
+            let mut terms = BTreeMap::new();
+            collect_terms(&query, &mut terms);
+            accumulate_ranges(
+                &directory,
+                |at, n| {
+                    reads.push((at, n));
+                    Ok(bytes[at..at + n].to_vec())
+                },
+                &mut terms,
+            )
+            .unwrap();
+            assert_eq!(
+                evaluate(&query, &terms).unwrap(),
+                candidates(std::slice::from_ref(&bytes), text)
+            );
+            if text == "absent" {
+                assert_eq!(reads.len(), before);
+            }
+            if text == "zzrare" || text == "zzrare OR absent" {
+                assert_eq!(reads.len(), before + 1);
+                assert!(reads.iter().map(|(_, n)| n).sum::<usize>() < bytes.len() / 100);
+            }
+        }
+    }
+
+    #[test]
+    fn v2_unread_corruption_not_claimed_selected_corruption_rejected() {
+        let mut bytes = payload("beer craft", tid(0));
+        let directory =
+            load_directory(bytes.len(), |at, n| Ok(bytes[at..at + n].to_vec())).unwrap();
+        let LoadedDirectory::V2(ref dir) = directory else {
+            panic!()
+        };
+        bytes[dir.entries["beer"].offset + 50] ^= 0x80;
+        let mut terms = BTreeMap::from([("absent".into(), Postings::default())]);
+        accumulate_ranges(
+            &directory,
+            |_, _| panic!("absent term read a posting frame"),
+            &mut terms,
+        )
+        .unwrap();
+        terms.insert("beer".into(), Postings::default());
+        assert!(
+            accumulate_ranges(
+                &directory,
+                |at, n| Ok(bytes[at..at + n].to_vec()),
+                &mut terms
+            )
+            .is_err()
+        );
+        assert!(merge_payloads(&[bytes]).is_err());
+    }
+
+    fn reseal_v2(bytes: &mut [u8]) {
+        let crc = crc32c(&bytes[..28]);
+        bytes[28..32].copy_from_slice(&crc.to_le_bytes());
+        let end = word(bytes, 20) as usize - 4;
+        let crc = crc32c(&bytes[..end]);
+        bytes[end..end + 4].copy_from_slice(&crc.to_le_bytes());
+    }
+    #[test]
+    fn v2_bad_offsets_counts_versions_and_directory_checksums_fail_closed() {
+        let bytes = payload("beer craft", tid(0));
+        let dir_len = word(&bytes, 20) as usize;
+        for at in 0..dir_len {
+            let mut bad = bytes.clone();
+            bad[at] ^= 0x80;
+            assert!(
+                load_directory(bad.len(), |at, n| Ok(bad[at..at + n].to_vec())).is_err(),
+                "directory byte {at}"
+            );
+        }
+        for (at, value) in [
+            (8, 3),
+            (12, u32::MAX),
+            (V2_HEADER + 4, 0),
+            (V2_HEADER + 8, u32::MAX),
+            (V2_HEADER + 12, 0),
+            (V2_HEADER + 12, MAX_PAIRS as u32 + 1),
+        ] {
+            let mut bad = bytes.clone();
+            bad[at..at + 4].copy_from_slice(&value.to_le_bytes());
+            reseal_v2(&mut bad);
+            assert!(
+                load_directory(bad.len(), |at, n| Ok(bad[at..at + n].to_vec())).is_err(),
+                "resealed field {at}"
+            );
+        }
+        let mut wrong_count = bytes.clone();
+        wrong_count[V2_HEADER + 12..V2_HEADER + 16].copy_from_slice(&2u32.to_le_bytes());
+        reseal_v2(&mut wrong_count);
+        let directory = load_directory(wrong_count.len(), |at, n| {
+            Ok(wrong_count[at..at + n].to_vec())
+        })
+        .unwrap();
+        let mut terms = BTreeMap::from([("beer".into(), Postings::default())]);
+        assert!(
+            accumulate_ranges(
+                &directory,
+                |at, n| Ok(wrong_count[at..at + n].to_vec()),
+                &mut terms
+            )
+            .unwrap_err()
+            .contains("count mismatch")
+        );
+        assert!(merge_payloads(&[wrong_count]).is_err());
+    }
+
+    #[test]
+    fn legacy_query_and_mixed_merge_write_v2_and_preserve_history_bounds() {
+        let legacy = legacy_payload("beer", tid(0));
+        let current = payload("craft beer", tid(0));
+        let mut terms = BTreeMap::from([
+            ("beer".into(), Postings::default()),
+            ("craft".into(), Postings::default()),
+        ]);
+        let mut counts = BTreeMap::from([("beer".into(), 0), ("craft".into(), 0)]);
+        for bytes in [&legacy, &current] {
+            let directory =
+                load_directory(bytes.len(), |at, n| Ok(bytes[at..at + n].to_vec())).unwrap();
+            physical_counts(&directory, &mut counts).unwrap();
+            accumulate_ranges(
+                &directory,
+                |at, n| Ok(bytes[at..at + n].to_vec()),
+                &mut terms,
+            )
+            .unwrap();
+        }
+        assert_eq!(counts["beer"], 2);
+        assert_eq!(terms["beer"].len(), 1);
+        let q = query("beer AND craft").unwrap().unwrap();
+        assert_eq!(evaluate(&q, &terms).unwrap().len(), 1);
+        assert_eq!(count_upper_bound(&q, &counts), 1);
+        let merged = merge_payloads(&[legacy, current]).unwrap();
+        assert_eq!(word(&merged, 8), 2);
+        assert_eq!(candidates(&[merged], "beer AND craft").len(), 1);
+    }
 
     fn tid(n: usize) -> Ctid {
         let per_page = max_heap_offset();
@@ -521,6 +1068,27 @@ mod tests {
         let mut builder = Builder::default();
         builder.add(document, tid).unwrap();
         builder.finish().unwrap()
+    }
+
+    fn legacy_payload(document: &str, tid: Ctid) -> Vec<u8> {
+        let current = payload(document, tid);
+        let mut bytes = MAGIC.to_vec();
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&word(&current, 12).to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        visit_frames(&current, |term, frame| {
+            bytes.extend_from_slice(&(term.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(&(frame.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(term.as_bytes());
+            bytes.extend_from_slice(frame);
+            Ok(())
+        })
+        .unwrap();
+        let total = (bytes.len() + 4) as u32;
+        bytes[16..20].copy_from_slice(&total.to_le_bytes());
+        let crc = crc32c(&bytes);
+        bytes.extend_from_slice(&crc.to_le_bytes());
+        bytes
     }
 
     fn candidates(payloads: &[Vec<u8>], text: &str) -> Postings {
@@ -538,7 +1106,7 @@ mod tests {
             terms: BTreeMap::from([("beer".into(), (0..count).map(tid).collect())]),
             logical_bytes: 4 + count * std::mem::size_of::<Ctid>(),
             pairs: count,
-            wire_bytes: 8
+            wire_bytes: 16
                 + "beer".len()
                 + (0..count)
                     .map(|n| posting_wire_growth(n.checked_sub(1).map(tid), tid(n)))
@@ -723,7 +1291,7 @@ mod tests {
         let mut builder = Builder::default();
         builder.add_prepared(&first).unwrap();
         assert!(!builder.should_flush());
-        assert_eq!(builder.wire_bytes + 24, 5_880_024);
+        assert_eq!(builder.wire_bytes + 36, 6_360_036);
         let before = builder.terms.clone();
         let counters = (builder.pairs, builder.logical_bytes, builder.wire_bytes);
         assert!(!builder.can_accept(&second));
@@ -736,11 +1304,11 @@ mod tests {
         );
         assert_eq!(
             std::mem::take(&mut builder).finish().unwrap().len(),
-            5_880_024
+            6_360_036
         );
         assert!(builder.can_accept(&second));
         builder.add_prepared(&second).unwrap();
-        assert_eq!(builder.finish().unwrap().len(), 11_760_024);
+        assert_eq!(builder.finish().unwrap().len(), 12_720_036);
 
         // Even in an empty builder a logically fitting but unencodable whole
         // document is rejected before retaining its first term.
@@ -758,11 +1326,11 @@ mod tests {
     #[test]
     fn wire_admission_is_inclusive_atomic_and_duplicate_safe() {
         let mut builder = one_term_builder(1);
-        builder.wire_bytes = MAX_BYTES - 24 - 2;
+        builder.wire_bytes = MAX_BYTES - 36 - 2;
         let next = prepare("beer", tid(1)).unwrap();
         assert!(builder.can_accept(&next));
         builder.add_prepared(&next).unwrap();
-        assert_eq!(builder.wire_bytes + 24, MAX_BYTES);
+        assert_eq!(builder.wire_bytes + 36, MAX_BYTES);
         assert!(builder.can_accept(&next));
         builder.add_prepared(&next).unwrap(); // consecutive duplicate costs zero
         let before = builder.terms.clone();
@@ -792,7 +1360,7 @@ mod tests {
                     .add("beer craft", Ctid::new(block, offset).unwrap())
                     .unwrap();
             }
-            let bound = builder.wire_bytes + 24;
+            let bound = builder.wire_bytes + 36;
             let actual = builder.finish().unwrap().len();
             assert!(actual <= bound, "case {n}: actual {actual}, bound {bound}");
             if n == 0 || n == 3 {
@@ -810,7 +1378,7 @@ mod tests {
         for n in 0..200_000 {
             document.tid = tid(n);
             if !builder.is_empty() && (builder.should_flush() || !builder.can_accept(&document)) {
-                let bound = builder.wire_bytes + 24;
+                let bound = builder.wire_bytes + 36;
                 let bytes = std::mem::take(&mut builder).finish().unwrap();
                 assert_eq!(bytes.len(), bound);
                 encoded_bytes += bytes.len();
@@ -818,7 +1386,7 @@ mod tests {
             }
             builder.add_prepared(&document).unwrap();
         }
-        let bound = builder.wire_bytes + 24;
+        let bound = builder.wire_bytes + 36;
         let bytes = builder.finish().unwrap();
         assert_eq!(bytes.len(), bound);
         encoded_bytes += bytes.len();
@@ -886,7 +1454,7 @@ mod tests {
 
     #[test]
     fn merge_validates_skipped_codec_frames_not_just_envelope_crc() {
-        let mut bad = payload("beer", tid(0));
+        let mut bad = legacy_payload("beer", tid(0));
         let frame_start = 28 + 4; // dictionary header and "beer"
         bad[frame_start + 20] = 1; // codec reserved field, not canonical
         let end = bad.len() - 4;
@@ -912,7 +1480,7 @@ mod tests {
     #[test]
     fn merge_rejects_resealed_codec_valid_impossible_offsets_in_unqueried_terms() {
         let maximum = u16::try_from(max_heap_offset()).unwrap();
-        let boundary = payload("beer", Ctid::new(0, maximum).unwrap());
+        let boundary = legacy_payload("beer", Ctid::new(0, maximum).unwrap());
         let other = payload("craft", tid(0));
         assert!(merge_payloads(&[boundary.clone(), other.clone()]).is_ok());
         for impossible in [maximum + 1, u16::MAX] {
@@ -989,7 +1557,7 @@ mod tests {
         let mut b = Builder::default();
         b.add("beer", Ctid::new(256, 1).unwrap()).unwrap();
         let mut bytes = b.finish().unwrap();
-        bytes[28] ^= 1;
+        bytes[V2_HEADER + 16] ^= 1;
         assert!(
             accumulate(&bytes, &mut BTreeMap::new())
                 .unwrap_err()
@@ -1065,7 +1633,7 @@ mod tests {
     }
 
     #[test]
-    fn corruption_is_detected_even_for_absent_query_terms() {
+    fn full_memory_validation_detects_corruption_even_without_terms() {
         let mut b = Builder::default();
         b.add("beer craft wine", Ctid::new(255, 7).unwrap())
             .unwrap();

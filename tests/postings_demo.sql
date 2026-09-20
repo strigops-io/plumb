@@ -207,7 +207,7 @@ DO $$ DECLARE p jsonb; heap_node jsonb; heap_blocks bigint; BEGIN
   PERFORM plumb_postings_demo.check((heap_node->>'Exact Heap Blocks')::bigint>0
     AND (heap_node->>'Exact Heap Blocks')::bigint < heap_blocks/10.0, 'rare exact heap blocks < total heap / 10');
   PERFORM plumb_postings_demo.check((heap_node->>'Lossy Heap Blocks')::bigint=0, 'rare Lossy Heap Blocks = 0');
-  PERFORM plumb_postings_demo.check((heap_node->>'Actual Rows')::bigint=30, 'rare arithmetic oracle = 30 rows');
+  PERFORM plumb_postings_demo.check((heap_node->>'Actual Rows')::numeric=30, 'rare arithmetic oracle = 30 rows');
   INSERT INTO plumb_postings_demo.evidence(label,detail) VALUES('rare summary',
     jsonb_build_object('expected_rows',30,'heap_blocks',heap_blocks,
       'exact_heap_blocks',heap_node->'Exact Heap Blocks','lossy_heap_blocks',heap_node->'Lossy Heap Blocks'));
