@@ -22,7 +22,15 @@ def translate_query(q):
 
 def main():
     conn = psycopg2.connect(DSN)
+    conn.autocommit = True
     cur = conn.cursor()
+    cur.execute("SET enable_seqscan = off;")
+
+    # Prepare statements
+    cur.execute("PREPARE prep_count (text) AS SELECT count(*) FROM documents_plumb WHERE body ~~> $1;")
+    cur.execute("PREPARE prep_top (text, int) AS SELECT id FROM documents_plumb WHERE body ~~> $1 LIMIT $2;")
+
+    limit_map = {"TOP_10": 10, "TOP_100": 100, "TOP_1000": 1000}
 
     for line in sys.stdin:
         line = line.strip()
@@ -38,24 +46,22 @@ def main():
 
         try:
             if cmd == "COUNT":
-                cur.execute("SELECT count(*) FROM documents_plumb WHERE body ~~> %s;", (tq,))
+                cur.execute("EXECUTE prep_count (%s);", (tq,))
                 cnt = cur.fetchone()[0]
                 print(cnt)
-            elif cmd in ("TOP_10", "TOP_100", "TOP_1000"):
-                limit_map = {"TOP_10": 10, "TOP_100": 100, "TOP_1000": 1000}
+            elif cmd in limit_map:
                 limit = limit_map[cmd]
-                cur.execute("SELECT id FROM documents_plumb WHERE body ~~> %s LIMIT %s;", (tq, limit))
+                cur.execute("EXECUTE prep_top (%s, %s);", (tq, limit))
                 cur.fetchall()
                 print(1)
             elif cmd in ("TOP_10_COUNT", "TOP_100_COUNT", "TOP_1000_COUNT"):
-                cur.execute("SELECT count(*) FROM documents_plumb WHERE body ~~> %s;", (tq,))
+                cur.execute("EXECUTE prep_count (%s);", (tq,))
                 cnt = cur.fetchone()[0]
                 print(cnt)
             else:
                 print("UNSUPPORTED")
             sys.stdout.flush()
         except Exception as e:
-            conn.rollback()
             print("UNSUPPORTED")
             sys.stdout.flush()
 

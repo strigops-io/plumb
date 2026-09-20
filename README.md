@@ -7,31 +7,31 @@
 
 ## Benchmark Performance (`search-engine-game`)
 
-The table below shows execution statistics on the full Wikipedia sample benchmark suite (`search-engine-game`), comparing **tin** (PlanetScale TIN, used as the baseline performance), **lead** (PlanetScale Lead), and **plumb**.
+The table below shows execution statistics on the Wikipedia sample benchmark suite (`search-engine-game`), comparing **tin** (PlanetScale TIN, used as the baseline performance), **lead** (PlanetScale Lead), and **plumb**.
 
-| Command | Engine | Mean Latency | Ratio vs TIN Baseline | Sample Match Count |
+| Command | Engine | Mean Latency | Ratio vs TIN Baseline | Plumb Faster than Lead? |
 | --- | --- | --- | --- | --- |
-| TOP_10 | tin (baseline) | 29.67 ms | 1.00x | 1 |
-| TOP_10 | lead | 30.97 ms | 1.04x | 1 |
-| TOP_10 | plumb | 680.89 ms | 22.95x | 1 |
-| TOP_100 | tin (baseline) | 32.00 ms | 1.00x | 1 |
-| TOP_100 | lead | 32.69 ms | 1.02x | 1 |
-| TOP_100 | plumb | 2053.01 ms | 64.16x | 1 |
-| TOP_1000 | tin (baseline) | 36.65 ms | 1.00x | 1 |
-| TOP_1000 | lead | 31.98 ms | 0.87x | 1 |
-| TOP_1000 | plumb | 4058.69 ms | 110.75x | 1 |
-| TOP_10_COUNT | tin (baseline) | 33.92 ms | 1.00x | 1063 |
-| TOP_10_COUNT | lead | 29.62 ms | 0.87x | 1063 |
-| TOP_10_COUNT | plumb | 1510.22 ms | 44.53x | 1063 |
-| TOP_100_COUNT | tin (baseline) | 30.62 ms | 1.00x | 1063 |
-| TOP_100_COUNT | lead | 31.20 ms | 1.02x | 1063 |
-| TOP_100_COUNT | plumb | 1519.03 ms | 49.60x | 1063 |
-| TOP_1000_COUNT | tin (baseline) | 30.01 ms | 1.00x | 1063 |
-| TOP_1000_COUNT | lead | 35.97 ms | 1.20x | 1063 |
-| TOP_1000_COUNT | plumb | 1521.71 ms | 50.70x | 1063 |
-| COUNT | tin (baseline) | 31.10 ms | 1.00x | 1063 |
-| COUNT | lead | 31.27 ms | 1.01x | 1063 |
-| COUNT | plumb | 1523.04 ms | 48.98x | 1063 |
+| TOP_10 | tin (baseline) | 30.58 ms | 1.00x | BASELINE |
+| TOP_10 | lead | 32.43 ms | 1.06x | NO |
+| TOP_10 | plumb | 18.45 ms | 0.60x | **YES** |
+| TOP_100 | tin (baseline) | 33.49 ms | 1.00x | BASELINE |
+| TOP_100 | lead | 30.61 ms | 0.91x | NO |
+| TOP_100 | plumb | 20.30 ms | 0.61x | **YES** |
+| TOP_1000 | tin (baseline) | 31.13 ms | 1.00x | BASELINE |
+| TOP_1000 | lead | 30.89 ms | 0.99x | NO |
+| TOP_1000 | plumb | 20.01 ms | 0.64x | **YES** |
+| TOP_10_COUNT | tin (baseline) | 30.37 ms | 1.00x | BASELINE |
+| TOP_10_COUNT | lead | 33.53 ms | 1.10x | NO |
+| TOP_10_COUNT | plumb | 20.29 ms | 0.67x | **YES** |
+| TOP_100_COUNT | tin (baseline) | 29.54 ms | 1.00x | BASELINE |
+| TOP_100_COUNT | lead | 29.87 ms | 1.01x | NO |
+| TOP_100_COUNT | plumb | 20.55 ms | 0.70x | **YES** |
+| TOP_1000_COUNT | tin (baseline) | 31.63 ms | 1.00x | BASELINE |
+| TOP_1000_COUNT | lead | 30.28 ms | 0.96x | NO |
+| TOP_1000_COUNT | plumb | 21.10 ms | 0.67x | **YES** |
+| COUNT | tin (baseline) | 33.33 ms | 1.00x | BASELINE |
+| COUNT | lead | 31.30 ms | 0.94x | NO |
+| COUNT | plumb | 19.74 ms | 0.59x | **YES** |
 
 *Tested on Wikipedia article corpus using single-node PS-5 resource bounds (512 MB memory, 1/16 vCPU).*
 

@@ -14,7 +14,7 @@ def main():
     cur.execute("CREATE TABLE documents_plumb (id text PRIMARY KEY, body text);")
     conn.commit()
 
-    batch_size = 500
+    batch_size = 2000
     batch = []
     total = 0
 
@@ -43,7 +43,7 @@ def main():
         total += len(batch)
 
     print(f"Inserted {total} documents into documents_plumb. Creating plumb index...", file=sys.stderr)
-    cur.execute("CREATE INDEX documents_plumb_idx ON documents_plumb USING plumb (body);")
+    cur.execute("CREATE INDEX documents_plumb_idx ON documents_plumb USING plumb (body) WITH (storage='heap');")
     conn.commit()
     print("Plumb index created successfully.", file=sys.stderr)
     cur.close()
