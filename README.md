@@ -18,9 +18,8 @@ Existing Lead/TIN `tin` names and `==>` are left untouched.
 ```sql
 CREATE EXTENSION plumb;
 CREATE TABLE documents (id bigint PRIMARY KEY, body text);
--- Experimental persisted postings; omit WITH to keep the old heap baseline.
-CREATE INDEX documents_plumb_idx ON documents USING plumb (body)
-WITH (storage = 'postings_v1');
+-- Persisted grouped-CTID postings are now the default.
+CREATE INDEX documents_plumb_idx ON documents USING plumb (body);
 SELECT id, plumb.full_score(ctid)
 FROM documents WHERE body ~~> 'search';
 ```
@@ -46,13 +45,13 @@ This investigation asks two questions:
 ## Current milestone
 
 - Retains Lead's TINQL, tokenizers, scoring/highlighting behavior and heap-backed access method, with independent Plumb SQL identities. Inherited behavior assertions are retained with name/operator substitutions; new tests enforce provider isolation.
-- Uses the zero-dependency [CTID postings core](postings/) and [v1 codec](docs/postings-format.md) in an **opt-in persistent SQL index**. Term frames retain 256-page groups, page-presence masks and sparse tuple offsets, with no surrogate document-ID mapping.
+- Uses the zero-dependency [CTID postings core](postings/) and [v1 codec](docs/postings-format.md) in an **default persistent SQL index**. Term frames retain 256-page groups, page-presence masks and sparse tuple offsets, with no surrogate document-ID mapping.
 - Adds a versioned metapage and immutable linked term segments in PostgreSQL-managed MAIN-fork pages. Generic WAL writes segment pages before publishing the new head. Inserts append segments; exact candidates always undergo heap visibility and operator rechecks.
 - Adds a [reproducible PostgreSQL baseline](benches/README.md) with generated datasets, query plans and full result-set checks; no hosted service or proprietary test suite is required.
 
-**The default remains the heap-backed compatibility baseline.** Explicit `WITH (storage = 'postings_v1')` enables the experimental stored-postings path for positive terms and AND/OR queries. Unsupported query shapes (including phrases, NOT and wildcard forms) fall back to all-heap-page rechecks. Scoring is still heap-backed.
+**The default is now the experimental stored-postings engine (`postings_v1`).** Ordinary `CREATE INDEX ... USING plumb` persists grouped CTIDs for positive terms and AND/OR queries. Use `WITH (storage='heap')` explicitly only when you need the old heap-backed compatibility path. Unsupported query shapes (including phrases, NOT and wildcard forms) fall back to all-heap-page rechecks. Scoring is still heap-backed.
 
-[Checkpoint 003 demonstrates a real database SELECT](docs/checkpoint-003-results.md): 30 exact matching heap pages out of 4,286, with a nonzero persistent index. This is a small synthetic proof, not a general performance or production-readiness claim. Run the [guarded SQL demonstration](tests/postings-demo.md) to reproduce it.
+[Checkpoint 004](docs/checkpoint-004-results.md) demonstrates a no-WITH default index over **200,000 rows / 1,000,201 term-CTID pairs**, built in bounded batches. It also adds owner-authorized `plumb.merge_index` to consolidate bounded segment sets while preserving old snapshots. These are synthetic proofs, not production-readiness claims. Run the [guarded SQL demonstration](tests/postings-demo.md) and checkpoint-004 tests to reproduce them.
 
 The extension/package/library, schema and access method are `plumb`, version `0.1.0`. The standalone postings crate also starts at `0.1.0`; untouched language crates retain their upstream versions. This is not an in-place upgrade of an existing Lead/TIN index: create a separate Plumb index and deliberately migrate queries.
 
@@ -82,16 +81,26 @@ Scoring deliberately rescans and retokenizes the visible indexed column or expre
 
 ## Execution and storage today
 
-- `storage='heap'` (default): original all-heap-page lossy recheck implementation, with no stored search postings.
-- `storage='postings_v1'` (opt-in): bulk-builds one immutable term segment; inserts append segments. Positive queries union each term across segments, combine grouped CTID sets and return exact bitmap candidates with mandatory heap recheck. No extension files live outside PostgreSQL relation storage.
+- `storage='heap'` (explicit compatibility option): original all-heap-page lossy recheck implementation, with no stored search postings.
+- `storage='postings_v1'` (default): bulk-builds bounded immutable term batches; inserts append segments. Positive queries union each term across segments, combine grouped CTID sets and return exact bitmap candidates with mandatory heap recheck. No extension files live outside PostgreSQL relation storage.
 - A persisted metapage remains authoritative even if the reloption is toggled to `heap`. Converting a zero-page heap-baseline index to postings requires REINDEX; toggling a setting never silently skips maintenance.
 - Deletes/aborted writes can leave stale positive postings. MVCC/rechecks filter them; VACUUM does **not** reclaim index postings yet. Tested REINDEX compacts by rebuilding; tested TRUNCATE rebuilds an empty index.
 
 ### Hard limits and unsupported operations
 
-Postings mode currently accepts permanent heaps, the canonical text-search operator semantics, deterministic collation and the default analyzer only. Concurrent index build/reindex, temporary/unlogged storage and incompatible opclasses are rejected. Current limits include a 16 MiB document/segment cap, 262,144 build term/CTID pairs, 64 MiB committed index payload, 65,536 segments and 256 MiB physical index size. Queries have separate text/node/candidate limits and may error at a cap. Limits are not `work_mem`/RSS accounting; allocator overhead and transient buffers are additional.
+Postings mode currently accepts permanent heaps, the canonical text-search operator semantics, deterministic collation and the default analyzer only. Concurrent index build/reindex, temporary/unlogged storage and incompatible opclasses are rejected. Current limits include a 16 MiB document/segment cap, 262,144 term/CTID pairs per build batch (not the whole table), 64 MiB committed index payload, 65,536 segments and 256 MiB physical index size. Queries have separate text/node/candidate limits and may error at a cap. Limits are not `work_mem`/RSS accounting; allocator overhead and transient buffers are additional.
 
-Every insert currently creates a small immutable segment; every postings query traverses committed segments. There is no mutable ingestion buffer, background merge, dead-posting reclamation, index-backed scoring, top-k, or robust large-dataset tuning yet. A local immediate-stop/WAL-redo test passed, but replication, PITR, cancellation at publication boundaries and long stress testing remain unproven. See [storage contract](docs/persistent-index-milestone.md) and [measured evidence/limitations](docs/checkpoint-003-results.md).
+Bulk builds flush around 65,536 pairs or 4 MiB logical storage and before incoming-document admission would exceed limits; encoded wire-size accounting prevents overfull batches. Every insert still creates a small immutable segment; every postings query traverses active segments.
+
+Index owners (including inherited ownership) and superusers can run:
+
+```sql
+SELECT plumb.merge_index('documents_plumb_idx'::regclass);
+```
+
+This bounded operation unions all active segment postings and publishes one new immutable segment. It retains old physical pages for reader safety: **it does not reclaim disk space**. Aggregate input/output are limited to 16 MiB and cumulative decoded input pairs (including duplicates) to 262,144. An index too large for this merge can remain queryable; merge refuses before publication. Zero/one-segment indexes are no-ops. Merge takes a metapage lock through transformation and can stall writers; interruption may be deferred while that lock is held.
+
+Legacy zero-page indexes built without a storage option now fail closed on scan/insert. Deliberately REINDEX them into postings or set explicit `storage='heap'`; no silent adoption occurs. There is no mutable ingestion buffer, background merge, dead-posting reclamation, index-backed scoring, top-k, or robust large-dataset tuning yet. Local immediate-stop/WAL-redo tests passed, including a published merge and later appends, but replication, PITR, cancellation at publication boundaries and long stress testing remain unproven. See [storage contract](docs/persistent-index-milestone.md) and [measured evidence/limitations](docs/checkpoint-004-results.md).
 
 These 0.1.0 checkpoints target fresh disposable databases. No extension upgrade scripts or production on-disk migration path are supplied; installing new files over an earlier loaded development version is not a tested upgrade procedure.
 
@@ -110,7 +119,7 @@ cargo test --locked -p plumb-postings -p tinql -p tokenizer -p boldi-vigna
 cargo clippy --locked -p plumb-postings --all-targets -- -D warnings
 ```
 
-The [persistent SELECT/mutation/recovery tests](tests/postings-demo.md) exercise the opt-in stored index. The [coexistence tests](tests/README.md) exercise Plumb alongside separately installed public Lead. The [baseline guide](benches/README.md) explains opt-in 100k, 1m and 10m-row SQL measurements and their resource limits. Scale up only on a disposable development database. The current implementation makes no large-dataset performance promise.
+The [persistent SELECT/mutation/recovery tests](tests/postings-demo.md) exercise the default stored index. The [coexistence tests](tests/README.md) exercise Plumb alongside separately installed public Lead. The [baseline guide](benches/README.md) explains opt-in 100k, 1m and 10m-row SQL measurements and their resource limits. Scale up only on a disposable development database. The current implementation makes no large-dataset performance promise.
 
 The upstream private-regression helper scripts are retained unchanged for provenance; they still target upstream `tin` and are not supported Plumb commands or part of CI. This investigation uses public source/documentation and, only when separately authorized and supplied, black-box SQL observations—not proprietary TIN source or extracted binaries.
 

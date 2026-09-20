@@ -81,6 +81,6 @@ Coverage:
 - Both installation orders and both drop orders: the surviving provider keeps
   its index, operator, scoring, highlighting and index scan behavior.
 
-These are correctness/identity checks, not a performance claim. The default heap
-baseline coexists with Lead; [postings-demo.md](postings-demo.md) exercises the new
-opt-in persistent postings path. Neither is production-ready.
+These are correctness/identity checks, not a performance claim. The default persisted engine
+coexists with Lead, with heap mode explicit; [postings-demo.md](postings-demo.md)
+exercises the persistent postings path. Neither is production-ready.

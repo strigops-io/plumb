@@ -2,7 +2,11 @@
 // Copyright (C) 2026 Plumb contributors
 //! Experimental MAIN-fork immutable postings storage. Callers must hold the
 //! relation lock that prevents concurrent truncation/reindex, and enter through
-//! a pgrx-guarded PostgreSQL callback. No callback into user code holds a pin.
+//! a pgrx-guarded PostgreSQL callback. Public visit callbacks hold no pins/locks.
+//! Merge's Rust transform intentionally retains the metapage pin and EXCLUSIVE
+//! content lock, but no data-page pins/locks. It must be bounded, must not reenter
+//! storage or acquire other database locks, and should check for interrupts during
+//! lengthy work. Appenders and new snapshots wait for the entire merge transform.
 //!
 //! The envelope is explicitly little-endian, independent of Rust struct layout.
 //! Each segment occupies consecutive newly extended blocks; its descriptor is
@@ -34,6 +38,13 @@ pub struct StorageStats {
     pub segments: u32,
     pub payload_bytes: u64,
     pub relation_blocks: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MergeResult {
+    pub changed: bool,
+    pub before: StorageStats,
+    pub after: StorageStats,
 }
 
 #[derive(Clone, Copy)]
@@ -357,6 +368,54 @@ fn check_capacity(meta: Meta, payload: &[u8], existing_blocks: u32, extra_meta: 
     }
 }
 
+// Metadata is already decoded/validated. A no-op does not inspect the payloads
+// or invoke the transform, even when the physical relation is at capacity.
+fn merge_required(meta: Meta) -> Result<bool, &'static str> {
+    if meta.segments <= 1 {
+        return Ok(false);
+    }
+    if meta.bytes > MAX_SEGMENT_BYTES as u64 {
+        return Err("plumb postings merge capacity exceeded: aggregate input limit is 16 MiB");
+    }
+    Ok(true)
+}
+
+// Unlike append's logical capacity check, replacement counts only the new active
+// payload. Physical capacity still includes every old page and unpublished orphan.
+fn replacement_segment(bytes: usize, current_blocks: u32) -> Result<Segment, &'static str> {
+    if bytes == 0 {
+        return Err("plumb postings merge transform returned an empty payload");
+    }
+    if bytes > MAX_SEGMENT_BYTES {
+        return Err("plumb postings merge capacity exceeded: output limit is 16 MiB");
+    }
+    let pages = page_count(bytes);
+    if current_blocks == 0 || current_blocks as u64 + pages as u64 > MAX_BLOCKS as u64 {
+        return Err(
+            "plumb postings merge capacity exceeded: 256 MiB physical relation limit (including old/orphan pages); REINDEX required",
+        );
+    }
+    Ok(Segment {
+        root: current_blocks,
+        previous: NONE,
+        bytes: bytes as u32,
+        pages,
+    })
+}
+
+/// Write only fresh payload pages. Caller owns the exclusive metapage lock and
+/// has checked physical capacity. No page survives pinned after this returns.
+unsafe fn write_segment(index: pg_sys::Relation, segment: Segment, payload: &[u8]) {
+    for (ordinal, chunk) in payload.chunks(CHUNK_CAPACITY).enumerate() {
+        pgrx::check_for_interrupts!();
+        let body = encode_chunk(segment, ordinal as u32, chunk);
+        unsafe {
+            let buffer = Buffer::extend(index, segment.root + ordinal as u32);
+            write_page(index, &buffer, &body);
+        }
+    }
+}
+
 /// Caller retains the exclusive metapage lock for the *entire* write and publish.
 unsafe fn append_locked(
     index: pg_sys::Relation,
@@ -375,14 +434,7 @@ unsafe fn append_locked(
         bytes: payload.len() as u32,
         pages: page_count(payload.len()),
     };
-    for (ordinal, chunk) in payload.chunks(CHUNK_CAPACITY).enumerate() {
-        pgrx::check_for_interrupts!();
-        let body = encode_chunk(segment, ordinal as u32, chunk);
-        unsafe {
-            let buffer = Buffer::extend(index, current_blocks + ordinal as u32);
-            write_page(index, &buffer, &body);
-        }
-    }
+    unsafe { write_segment(index, segment, payload) };
     // Publication has its own record, following every referenced page's record.
     pgrx::check_for_interrupts!();
     let body = encode_meta(Meta {
@@ -434,6 +486,85 @@ pub unsafe fn append(index: pg_sys::Relation, payload: &[u8]) {
     }
 }
 
+/// Consolidate active payloads without reclaiming any physical pages. For zero or
+/// one segment, return a metadata-only no-op without calling `transform`.
+///
+/// `transform` receives newest-first, fully envelope-validated payloads totaling
+/// at most 16 MiB, with no data-page pins/locks held. Storage is codec-agnostic:
+/// the transform must validate all input codec bytes and return valid codec bytes
+/// or Err. Storage independently rejects empty or over-16-MiB replacement bytes.
+/// The metapage EXCLUSIVE lock is intentionally held across the transform and
+/// publication: do not reenter storage or acquire database locks in the transform.
+///
+/// Errors/cancellation before publication leave the original head active. Newly
+/// written pages may remain as bounded orphans. Successful merge also retains all
+/// old pages, keeping previously captured reader snapshots valid. Thus logical
+/// size may shrink while physical size grows; only REINDEX reclaims capacity.
+///
+/// # Safety
+/// Caller must hold a relation lock preventing truncation/reindex and call through
+/// a pgrx-guarded entry point. `index` must be a live permanent postings index.
+/// The bounded Rust transform must obey the lock and codec contract above.
+pub unsafe fn merge(
+    index: pg_sys::Relation,
+    transform: impl FnOnce(&[Vec<u8>]) -> Result<Vec<u8>, String>,
+) -> MergeResult {
+    unsafe {
+        permanent(index);
+        if blocks(index) == 0 {
+            corrupt("missing metapage on merge; REINDEX required");
+        }
+        // RAII keeps both the pin and lock alive through reads, transform, WAL
+        // and result construction, and releases them during error unwinding.
+        let buffer = Buffer::read(index, 0, true);
+        let count = blocks(index);
+        let meta = decode_meta(buffer.contents(), count).unwrap_or_else(|e| corrupt(e));
+        let before = storage_stats(meta, count);
+        if !merge_required(meta).unwrap_or_else(|e| pgrx::error!("{}", e)) {
+            return MergeResult {
+                changed: false,
+                before,
+                after: before,
+            };
+        }
+        let mut payloads = Vec::with_capacity(meta.segments as usize);
+        // Move each bounded allocation instead of cloning it: all retained input
+        // bytes together stay within the prechecked 16 MiB aggregate limit.
+        visit_snapshot(index, meta, count, |payload| payloads.push(payload));
+        pgrx::check_for_interrupts!();
+        let payload = transform(&payloads)
+            .unwrap_or_else(|e| pgrx::error!("plumb postings merge transform failed: {}", e));
+        drop(payloads);
+        pgrx::check_for_interrupts!();
+        let segment =
+            replacement_segment(payload.len(), count).unwrap_or_else(|e| pgrx::error!("{}", e));
+        write_segment(index, segment, &payload);
+        let replacement = Meta {
+            head: segment.root,
+            segments: 1,
+            bytes: segment.bytes as u64,
+        };
+        // A single final WAL record atomically replaces the head AND counters,
+        // after every replacement page's record. No old page is ever modified.
+        pgrx::check_for_interrupts!();
+        write_page(index, &buffer, &encode_meta(replacement));
+        MergeResult {
+            changed: true,
+            before,
+            after: storage_stats(replacement, count + segment.pages),
+        }
+    }
+}
+
+fn storage_stats(meta: Meta, count: u32) -> StorageStats {
+    StorageStats {
+        format_version: VERSION,
+        segments: meta.segments,
+        payload_bytes: meta.bytes,
+        relation_blocks: count,
+    }
+}
+
 unsafe fn snapshot(index: pg_sys::Relation) -> Option<(Meta, u32)> {
     unsafe {
         if blocks(index) == 0 {
@@ -453,14 +584,7 @@ unsafe fn snapshot(index: pg_sys::Relation) -> Option<(Meta, u32)> {
 /// # Safety
 /// Caller must hold a relation lock preventing truncation; `index` must be live.
 pub unsafe fn stats(index: pg_sys::Relation) -> Option<StorageStats> {
-    unsafe {
-        snapshot(index).map(|(meta, count)| StorageStats {
-            format_version: VERSION,
-            segments: meta.segments,
-            payload_bytes: meta.bytes,
-            relation_blocks: count,
-        })
-    }
+    unsafe { snapshot(index).map(|(meta, count)| storage_stats(meta, count)) }
 }
 
 /// Traverse a bounded, committed head snapshot, newest first. A later corruption
@@ -472,8 +596,22 @@ pub unsafe fn stats(index: pg_sys::Relation) -> Option<StorageStats> {
 /// a pgrx-guarded entry point. Visitor is Rust code, not an unguarded C callback.
 pub unsafe fn visit(index: pg_sys::Relation, mut visitor: impl FnMut(&[u8])) {
     unsafe {
-        let (meta, mut upper) = snapshot(index)
+        let (meta, count) = snapshot(index)
             .unwrap_or_else(|| corrupt("missing metapage on visit; REINDEX required"));
+        visit_snapshot(index, meta, count, |payload| visitor(&payload));
+    }
+}
+
+/// Traverse already captured metadata without touching block zero. Ownership of
+/// each payload passes to the visitor after releasing every data-page pin/lock.
+/// Merge's caller may still hold the metapage lock; public visit's caller does not.
+unsafe fn visit_snapshot(
+    index: pg_sys::Relation,
+    meta: Meta,
+    mut upper: u32,
+    mut visitor: impl FnMut(Vec<u8>),
+) {
+    unsafe {
         let mut root = meta.head;
         let mut total = 0u64;
         for segment_index in 0..meta.segments {
@@ -512,7 +650,7 @@ pub unsafe fn visit(index: pg_sys::Relation, mut visitor: impl FnMut(&[u8])) {
             }
             upper = root; // Also rejects page ranges overlapping a younger segment.
             root = segment.previous;
-            visitor(&payload);
+            visitor(payload);
         }
         if root != NONE || total != meta.bytes {
             corrupt("segment chain count/byte total mismatch");
@@ -523,6 +661,121 @@ pub unsafe fn visit(index: pg_sys::Relation, mut visitor: impl FnMut(&[u8])) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn merge_input_bounds_and_noops() {
+        for meta in [
+            Meta {
+                head: NONE,
+                segments: 0,
+                bytes: 0,
+            },
+            Meta {
+                head: 1,
+                segments: 1,
+                bytes: MAX_SEGMENT_BYTES as u64,
+            },
+        ] {
+            assert!(!merge_required(meta).unwrap());
+        }
+        let meta = Meta {
+            head: 2,
+            segments: 2,
+            bytes: MAX_SEGMENT_BYTES as u64,
+        };
+        assert!(merge_required(meta).unwrap());
+        assert!(
+            merge_required(Meta {
+                bytes: meta.bytes + 1,
+                ..meta
+            })
+            .is_err()
+        );
+        assert!(
+            merge_required(Meta {
+                bytes: MAX_INDEX_BYTES as u64,
+                ..meta
+            })
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn merge_output_and_physical_bounds_include_orphans() {
+        assert!(replacement_segment(0, 10).is_err());
+        assert!(replacement_segment(MAX_SEGMENT_BYTES + 1, 10).is_err());
+        assert!(replacement_segment(usize::MAX, 10).is_err());
+        assert!(replacement_segment(1, 0).is_err());
+        assert!(replacement_segment(1, MAX_BLOCKS).is_err());
+        assert!(replacement_segment(1, u32::MAX).is_err());
+        assert!(replacement_segment(1, MAX_BLOCKS - 1).is_ok());
+        let pages = page_count(MAX_SEGMENT_BYTES);
+        assert!(replacement_segment(MAX_SEGMENT_BYTES, MAX_BLOCKS - pages).is_ok());
+        assert!(replacement_segment(MAX_SEGMENT_BYTES, MAX_BLOCKS - pages + 1).is_err());
+        assert!(replacement_segment(CHUNK_CAPACITY + 1, MAX_BLOCKS - 1).is_err());
+    }
+
+    #[test]
+    fn replacement_envelope_is_standalone_at_physical_end() {
+        // 100 includes old pages and orphans; replacement never reuses a hole.
+        let segment = replacement_segment(CHUNK_CAPACITY + 3, 100).unwrap();
+        assert_eq!(segment.root, 100);
+        assert_eq!(segment.previous, NONE);
+        assert_eq!(segment.pages, 2);
+        let first = encode_chunk(segment, 0, &vec![7; CHUNK_CAPACITY]);
+        let last = encode_chunk(segment, 1, &[8, 9, 10]);
+        assert_eq!(decode_chunk(&first, 100, 0, 102).unwrap().0, segment);
+        assert_eq!(decode_chunk(&last, 100, 1, 102).unwrap().1, &[8, 9, 10]);
+        let meta = Meta {
+            head: segment.root,
+            segments: 1,
+            bytes: segment.bytes as u64,
+        };
+        let decoded = decode_meta(&encode_meta(meta), 102).unwrap();
+        assert_eq!(decoded.head, 100);
+        assert_eq!(decoded.segments, 1);
+        assert_eq!(decoded.bytes, segment.bytes as u64);
+        // A subsequent append links to the replacement, not its retired history.
+        let appended = Segment {
+            root: 102,
+            previous: decoded.head,
+            bytes: 1,
+            pages: 1,
+        };
+        assert_eq!(
+            decode_chunk(&encode_chunk(appended, 0, &[1]), 102, 0, 103)
+                .unwrap()
+                .0,
+            appended
+        );
+    }
+
+    #[test]
+    fn merge_stats_distinguish_logical_and_physical_size() {
+        let before = storage_stats(
+            Meta {
+                head: 8,
+                segments: 4,
+                bytes: 100,
+            },
+            10,
+        );
+        let segment = replacement_segment(50, before.relation_blocks).unwrap();
+        let after = storage_stats(
+            Meta {
+                head: segment.root,
+                segments: 1,
+                bytes: segment.bytes as u64,
+            },
+            before.relation_blocks + segment.pages,
+        );
+        assert_eq!(before.format_version, 1);
+        assert_eq!(after.format_version, before.format_version);
+        assert_eq!(before.segments, 4);
+        assert_eq!(after.segments, 1);
+        assert!(after.payload_bytes < before.payload_bytes);
+        assert!(after.relation_blocks > before.relation_blocks);
+    }
 
     #[test]
     fn envelope_crc_and_meta_validation() {

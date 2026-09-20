@@ -15,6 +15,7 @@
 //
 // The full license text is available in LICENSE.
 // Modified by Plumb contributors on 2026-09-20: experimental persistent index module wiring.
+// Modified by Plumb contributors on 2026-09-20: explicitly retain the lossy heap-baseline regression.
 use pgrx::pg_guard;
 
 ::pgrx::pg_module_magic!(name);
@@ -70,7 +71,10 @@ mod tests {
                (1, 'craft beer'), (2, 'wine'), (3, 'beer festival')",
         )
         .unwrap();
-        Spi::run("CREATE INDEX lite_search_idx ON lite_search USING plumb (body)").unwrap();
+        Spi::run(
+            "CREATE INDEX lite_search_idx ON lite_search USING plumb (body) WITH(storage='heap')",
+        )
+        .unwrap();
         Spi::run("SET LOCAL enable_seqscan = off").unwrap();
         let ids = Spi::get_one::<Vec<i32>>(
             "SELECT array_agg(id ORDER BY id) FROM lite_search WHERE body ~~> 'beer'",

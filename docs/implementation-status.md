@@ -2,11 +2,11 @@
 
 ## Scope of this increment
 
-Checkpoint 003 integrates the scalar postings core into an **opt-in persistent SQL
-index**. A real SELECT uses grouped CTID candidates read from PostgreSQL-managed
-WAL-logged pages. It is still a bounded proof of concept; none of the complete
+Checkpoint 004 makes grouped CTID postings the **default SQL engine**, adds bounded
+multi-segment bulk builds, and exposes owner-authorized manual immutable merging.
+A real SELECT uses candidates read from PostgreSQL-managed WAL-logged pages. It is still a bounded proof of concept; none of the complete
 production phases in [VISION.md](../VISION.md) is declared finished. See
-[the demonstration and limitations](checkpoint-003-results.md).
+[the demonstration and limitations](checkpoint-004-results.md).
 
 Repository: `strigops-io/plumb`. Starting revision:
 `bd95c7e51b6afce81396790852ee2f2c169570ad` (Lead-derived baseline).
@@ -15,20 +15,44 @@ Repository: `strigops-io/plumb`. Starting revision:
 | --- | --- | --- |
 | TINQL, tokenization, scoring, highlighting | Language/algorithms inherited; SQL identity and binding isolated | Language crates unchanged; PostgreSQL behavior assertions preserved with name substitutions |
 | SQL extension/API | plumb 0.1.0, plumb schema/AM, ~~> operator | Native identity implemented; optional tin adapter deferred; see coexistence.md |
-| Index scans/build/insert/VACUUM | Default heap baseline plus opt-in postings_v1 | Bulk term segment, exact positive candidates, per-insert immutable appends; VACUUM does not reclaim postings |
+| Index scans/build/insert/VACUUM | Default postings_v1, explicit heap compatibility | Bounded bulk batches, exact positives, per-insert appends; VACUUM does not reclaim postings |
 | CTID identity and validation | Implemented in standalone library | postings/src/lib.rs; no logical-document-ID mapping |
 | 256-page groups, masks, sparse offsets | Implemented and persisted in per-term codec frames | Query decodes CTIDs, unions terms across segments and intersects/unions grouped sets |
 | Boolean query compilation | Positive terms, AND/OR/conjunction/boost | Unsupported query shapes fall back to heap recheck; never unsafe NOT subtraction |
 | Terms, positions, frequencies and stats in storage | Sorted term dictionary implemented | No positions/frequencies/index-backed BM25; metadata stats only |
 | Standalone postings serialization | Experimental v1 codec implemented | Canonical little-endian frame, CRC32C, allocation-free validation and explicit limits; docs/postings-format.md |
-| Metapage and segment directory | Versioned metapage plus immutable backwards-linked segments | MAIN-fork pages with per-page checksums; no merge/reclamation/generation replacement |
+| Metapage and segment directory | Versioned metapage plus immutable backwards-linked segments | Owner-authorized bounded replacement merge; old pages retained, no reclamation |
 | WAL, publication, recovery and replication | Generic WAL for page writes then head publication | Local immediate-stop recovery passed; replication/PITR and publication-fault campaigns unproven |
 | Online writes, HOT, VACUUM liveness and CTID reuse | Per-insert append plus mandatory MVCC/operator recheck | Mutation/concurrency/HOT/reuse cases passed; no liveness mask or dead-byte reclamation |
 | Resource/interrupt control | Fixed text/pair/query/payload/page caps and loop interrupts | Not work_mem/RSS accounting; no spill; container/allocator/transient overhead remains |
 | SQL baseline harness | Implemented and exercised locally | benches/baseline.sql: deterministic corpus, full ID multiset checks, arithmetic oracle, JSON plans |
 | Production readiness / hosted escape hatch | Unproven | No performance, operational or complete hosted-compatibility conclusion yet |
 
-## Checkpoint 003 validation
+## Checkpoint 004 validation
+
+- Default no-WITH engine and unrelated reloptions select persisted v1; explicit heap
+  remains available. Legacy zero-page/default indexes fail closed pending REINDEX.
+- 200,000-row no-WITH build / 1,000,201 term-CTID pairs succeeds in 16 bounded
+  segments (2,032,885 payload bytes, 261 blocks), beyond the prior whole-build cap.
+  Rare/AND/OR full IDs match sequential and arithmetic oracles (200/100/201).
+- Manual merge demonstrated 60 active segments -> 1 and 13,020 -> 546 active bytes;
+  physical blocks grew 61 -> 62. It is consolidation, not space reclamation.
+- 109 extension tests (58 PostgreSQL, 51 host) pass; 377 pure Rust and 32 release
+  postings tests pass. Workspace Clippy, formatting, and PG18 shipped-binding
+  compilation pass. No PG18 runtime claim.
+- Default demo 48, growth/cap-refusal 47, mutations 346, HOT/reuse 16 and public
+  Lead coexistence 54 checks pass; explicit-heap temp baseline passes.
+- Old visible histories across merge, committing/aborting appenders, competing
+  mergers and heap-first TRUNCATE interleaving pass. Permission tests include
+  changed=true owner/inherited-owner calls and outsider rejection.
+- Immediate-stop WAL redo and read-only merge verification preserve metadata and
+  all saved expected IDs; larger default queries and mutation checks pass too.
+- A too-large merge is rejected with unchanged metadata/physical size and correct
+  subsequent SELECTs. Cumulative merge input pairs include duplicates.
+- See [checkpoint-004-results.md](checkpoint-004-results.md) for measured results,
+  review-driven fixes and the still-unproven publication/cap/stress cases.
+
+## Historical checkpoint 003 validation
 
 - **73 extension tests passed**, including 42 executed inside PostgreSQL 17 and
   31 host-side tests. Eight new hardening regressions cover incompatible opclasses
@@ -155,7 +179,7 @@ This initial ledger records provenance, not a claim of full TIN equivalence.
 4. Add bounded ingestion, VACUUM-driven liveness, publication/reclamation and
    recovery tests before describing an index as operationally usable. WAL safety
    is required when persistent state is introduced, not postponed to marketing.
-5. Once real SQL pruning exists, run controlled release-build baselines at 100k,
+5. Run broader controlled release-build baselines at 100k,
    1m and larger representative datasets, measuring memory, build/write cost,
    latency distributions, index size and maintenance under concurrent load.
 

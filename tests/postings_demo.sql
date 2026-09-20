@@ -134,7 +134,8 @@ SET synchronous_commit = on;
        || CASE n WHEN 1 THEN ' leftmark' WHEN 2 THEN ' rightmark' ELSE '' END
     FROM generate_series(1,30000) n;
   INSERT INTO plumb_postings_demo.docs(id,body) VALUES (30001,NULL),(30002,'');
-  CREATE INDEX docs_postings ON plumb_postings_demo.docs USING plumb(body) WITH(storage='postings_v1');
+  -- No WITH clause: exercise Plumb's default persisted engine.
+  CREATE INDEX docs_postings ON plumb_postings_demo.docs USING plumb(body);
   ANALYZE plumb_postings_demo.docs;
   COMMIT;
 \endif
@@ -163,7 +164,7 @@ SELECT plumb_postings_demo.check((SELECT count(DISTINCT split_part(trim(both '()
 DO $$ DECLARE s jsonb; BEGIN
   s := plumb.index_stats('plumb_postings_demo.docs_postings'::regclass)::jsonb;
   PERFORM plumb_postings_demo.check((s->>'format_version')::integer=1, 'index format_version = 1');
-  PERFORM plumb_postings_demo.check((s->>'segments')::bigint=1, 'one initial bulk segment');
+  PERFORM plumb_postings_demo.check((s->>'segments')::bigint>1, 'bounded default build creates multiple immutable segments');
   PERFORM plumb_postings_demo.check((s->>'payload_bytes')::bigint>0 AND (s->>'relation_blocks')::bigint>1,
     'nonzero persistent posting bytes/blocks');
   PERFORM plumb_postings_demo.check((s->>'relation_blocks')::bigint =
