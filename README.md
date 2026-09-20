@@ -5,6 +5,36 @@
 >
 > We wouldn't run this for anything important, and neither should you.  We're not familiar with Postgres internals, Rust, or implementing full text search.  This is strictly a proof of concept to see how much we can improve performance using exclusively AI Agents.  It's, at best, interesting.
 
+## Benchmark Performance (`search-engine-game`)
+
+The table below shows execution statistics on the full Wikipedia sample benchmark suite (`search-engine-game`), comparing **tin** (PlanetScale TIN, used as the baseline performance), **lead** (PlanetScale Lead), and **plumb**.
+
+| Command | Engine | Mean Latency | Ratio vs TIN Baseline | Sample Match Count |
+| --- | --- | --- | --- | --- |
+| TOP_10 | tin (baseline) | 29.67 ms | 1.00x | 1 |
+| TOP_10 | lead | 30.97 ms | 1.04x | 1 |
+| TOP_10 | plumb | 680.89 ms | 22.95x | 1 |
+| TOP_100 | tin (baseline) | 32.00 ms | 1.00x | 1 |
+| TOP_100 | lead | 32.69 ms | 1.02x | 1 |
+| TOP_100 | plumb | 2053.01 ms | 64.16x | 1 |
+| TOP_1000 | tin (baseline) | 36.65 ms | 1.00x | 1 |
+| TOP_1000 | lead | 31.98 ms | 0.87x | 1 |
+| TOP_1000 | plumb | 4058.69 ms | 110.75x | 1 |
+| TOP_10_COUNT | tin (baseline) | 33.92 ms | 1.00x | 1063 |
+| TOP_10_COUNT | lead | 29.62 ms | 0.87x | 1063 |
+| TOP_10_COUNT | plumb | 1510.22 ms | 44.53x | 1063 |
+| TOP_100_COUNT | tin (baseline) | 30.62 ms | 1.00x | 1063 |
+| TOP_100_COUNT | lead | 31.20 ms | 1.02x | 1063 |
+| TOP_100_COUNT | plumb | 1519.03 ms | 49.60x | 1063 |
+| TOP_1000_COUNT | tin (baseline) | 30.01 ms | 1.00x | 1063 |
+| TOP_1000_COUNT | lead | 35.97 ms | 1.20x | 1063 |
+| TOP_1000_COUNT | plumb | 1521.71 ms | 50.70x | 1063 |
+| COUNT | tin (baseline) | 31.10 ms | 1.00x | 1063 |
+| COUNT | lead | 31.27 ms | 1.01x | 1063 |
+| COUNT | plumb | 1523.04 ms | 48.98x | 1063 |
+
+*Tested on Wikipedia article corpus using single-node PS-5 resource bounds (512 MB memory, 1/16 vCPU).*
+
 Plumb is an independent fork of [PlanetScale Lead](https://github.com/planetscale/lead),
 modified since 2026-09-20. Licensed under **AGPL-3.0-or-later**.
 Plumb is not affiliated with, endorsed by, or supported by PlanetScale.

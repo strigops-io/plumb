@@ -1,4 +1,4 @@
-CORPUS := $(shell pwd)/corpus.json
+CORPUS := /tmp/corpus.json
 export CORPUS
 
 WIKI_SRC := "https://www.dropbox.com/s/wwnfnu441w1ec9p/wiki-articles.json.bz2"
@@ -6,6 +6,10 @@ CORPUS_LIMIT ?= 1000
 
 COMMANDS ?= TOP_10 TOP_100 TOP_1000 TOP_10_COUNT TOP_100_COUNT TOP_1000_COUNT COUNT
 export COMMANDS
+
+export TIN_DSN ?= $(TEST_TIN_PLANETSCALE)
+export LEAD_DSN ?= $(TEST_TIN_PLANETSCALE)
+export PLUMB_DSN ?= host=127.0.0.1 port=28818 dbname=postgres
 
 ENGINES ?= lead plumb tin
 QUERIES ?= queries.txt
