@@ -45,13 +45,14 @@ This investigation asks two questions:
 ## Current milestone
 
 - Retains Lead's TINQL, tokenizers, scoring/highlighting behavior and heap-backed access method, with independent Plumb SQL identities. Inherited behavior assertions are retained with name/operator substitutions; new tests enforce provider isolation.
-- Uses the zero-dependency [CTID postings core](postings/) and [v1 codec](docs/postings-format.md) in an **default persistent SQL index**. Term frames retain 256-page groups, page-presence masks and sparse tuple offsets, with no surrogate document-ID mapping.
+- Uses the zero-dependency [CTID postings core](postings/) and [v1 codec](docs/postings-format.md) in a **default persistent SQL index**. Term frames retain 256-page groups, page-presence masks and sparse tuple offsets, with no surrogate document-ID mapping.
 - Adds a versioned metapage and immutable linked term segments in PostgreSQL-managed MAIN-fork pages. Generic WAL writes segment pages before publishing the new head. Inserts append segments; exact candidates always undergo heap visibility and operator rechecks.
+- Adds selective term-directory/frame reads, hardware-dispatched CRC32C with portable fallback, advisory `plumb.term_stats`, and bounded exact `plumb.top_k`. Both PostgreSQL 17 and 18 now have real passing runtime tests.
 - Adds a [reproducible PostgreSQL baseline](benches/README.md) with generated datasets, query plans and full result-set checks; no hosted service or proprietary test suite is required.
 
 **The default is now the experimental stored-postings engine (`postings_v1`).** Ordinary `CREATE INDEX ... USING plumb` persists grouped CTIDs for positive terms and AND/OR queries. Use `WITH (storage='heap')` explicitly only when you need the old heap-backed compatibility path. Unsupported query shapes (including phrases, NOT and wildcard forms) fall back to all-heap-page rechecks. Scoring is still heap-backed.
 
-[Checkpoint 004](docs/checkpoint-004-results.md) demonstrates a no-WITH default index over **200,000 rows / 1,000,201 term-CTID pairs**, built in bounded batches. It also adds owner-authorized `plumb.merge_index` to consolidate bounded segment sets while preserving old snapshots. These are synthetic proofs, not production-readiness claims. Run the [guarded SQL demonstration](tests/postings-demo.md) and checkpoint-004 tests to reproduce them.
+[Checkpoint 005](docs/checkpoint-005-results.md) reviews and optimizes the 200,000-row default-engine fixture: selective v2 term reads, advisory statistics, exact bounded top-k and **170 passing tests on each of PostgreSQL 17 and 18**. Measured query execution improves, but these are synthetic warm-cache results, not production-readiness claims. Earlier build/merge evidence remains in [checkpoint 004](docs/checkpoint-004-results.md).
 
 The extension/package/library, schema and access method are `plumb`, version `0.1.0`. The standalone postings crate also starts at `0.1.0`; untouched language crates retain their upstream versions. This is not an in-place upgrade of an existing Lead/TIN index: create a separate Plumb index and deliberately migrate queries.
 
@@ -90,7 +91,7 @@ Scoring deliberately rescans and retokenizes the visible indexed column or expre
 
 Postings mode currently accepts permanent heaps, the canonical text-search operator semantics, deterministic collation and the default analyzer only. Concurrent index build/reindex, temporary/unlogged storage and incompatible opclasses are rejected. Current limits include a 16 MiB document/segment cap, 262,144 term/CTID pairs per build batch (not the whole table), 64 MiB committed index payload, 65,536 segments and 256 MiB physical index size. Queries have separate text/node/candidate limits and may error at a cap. Limits are not `work_mem`/RSS accounting; allocator overhead and transient buffers are additional.
 
-Bulk builds flush around 65,536 pairs or 4 MiB logical storage and before incoming-document admission would exceed limits; encoded wire-size accounting prevents overfull batches. Every insert still creates a small immutable segment; every postings query traverses active segments.
+Bulk builds flush around 65,536 pairs or 4 MiB logical storage and before incoming-document admission would exceed limits; encoded wire-size accounting prevents overfull batches. Every insert still creates a small immutable segment; every postings query traverses active segment descriptors; v2 segments read checked directories and only selected frames, while legacy v1 segments retain their whole-payload path.
 
 Index owners (including inherited ownership) and superusers can run:
 
@@ -100,15 +101,39 @@ SELECT plumb.merge_index('documents_plumb_idx'::regclass);
 
 This bounded operation unions all active segment postings and publishes one new immutable segment. It retains old physical pages for reader safety: **it does not reclaim disk space**. Aggregate input/output are limited to 16 MiB and cumulative decoded input pairs (including duplicates) to 262,144. An index too large for this merge can remain queryable; merge refuses before publication. Zero/one-segment indexes are no-ops. Merge takes a metapage lock through transformation and can stall writers; interruption may be deferred while that lock is held.
 
-Legacy zero-page indexes built without a storage option now fail closed on scan/insert. Deliberately REINDEX them into postings or set explicit `storage='heap'`; no silent adoption occurs. There is no mutable ingestion buffer, background merge, dead-posting reclamation, index-backed scoring, top-k, or robust large-dataset tuning yet. Local immediate-stop/WAL-redo tests passed, including a published merge and later appends, but replication, PITR, cancellation at publication boundaries and long stress testing remain unproven. See [storage contract](docs/persistent-index-milestone.md) and [measured evidence/limitations](docs/checkpoint-004-results.md).
+Legacy zero-page indexes built without a storage option now fail closed on scan/insert. Deliberately REINDEX them into postings or set explicit `storage='heap'`; no silent adoption occurs. There is no mutable ingestion buffer, background merge, dead-posting reclamation, index-backed scoring, WAND/block-max pruning or robust large-dataset tuning yet. The new top_k API is exact and bounded but still heap-corpus based. Local immediate-stop/WAL-redo tests passed, including a published merge and later appends, but replication, PITR, cancellation at publication boundaries and long stress testing remain unproven. See [storage contract](docs/persistent-index-milestone.md) and [measured evidence/limitations](docs/checkpoint-005-results.md).
 
 These 0.1.0 checkpoints target fresh disposable databases. No extension upgrade scripts or production on-disk migration path are supplied; installing new files over an earlier loaded development version is not a tested upgrade procedure.
 
+## Query statistics and bounded top-k
+
+```sql
+-- Index owner only; physical/stale upper bounds, not visible document frequency.
+SELECT plumb.term_stats('documents_plumb_idx'::regclass, 'search');
+
+-- Exact full-BM25 ordering, score DESC and physical CTID ASC on ties.
+SELECT * FROM plumb.top_k('documents_plumb_idx'::regclass, 'search', 10);
+```
+
+Top-k supports plain text-column indexes and bounded positive term/AND/OR/boost
+queries; expression/partial indexes and advanced forms currently error. It uses a
+caller-snapshot, invoker-permission/RLS-aware corpus scan and bounded candidate
+features/selection heap. **It is not index-backed BM25 or WAND.** Limits include
+k<=1000, one million visible rows, 256 MiB corpus text, 100k matching candidates and
+32 MiB charged candidate features; see the complete [limits](docs/checkpoint-005-results.md).
+
+New writes use term-payload v2 while metapage/page/scalar-frame versions stay v1.
+Legacy v1 reads remain supported; REINDEX or a real merge can produce v2. Selective
+queries validate directories and fetched frames, not unread frame corruption.
+Scalar page masks remain default because AVX2 dispatch lost the microbenchmark;
+CRC32C uses runtime SSE4.2 where supported, otherwise portable tables.
+
 ## Tests and measurements
 
-Run the inherited behavior tests and new identity/isolation tests:
+Run the real PostgreSQL matrix (initialize both majors first):
 
 ```sh
+cargo pgrx test pg17 --package plumb --no-default-features --features pg17
 cargo pgrx test pg18 --package plumb --no-default-features --features pg18
 ```
 
@@ -118,6 +143,8 @@ The pure Rust suites, including the new postings core, run without PostgreSQL or
 cargo test --locked -p plumb-postings -p tinql -p tokenizer -p boldi-vigna
 cargo clippy --locked -p plumb-postings --all-targets -- -D warnings
 ```
+
+For **two separate instances**—local Plumb versus an authorized PlanetScale TIN evaluation endpoint—use the [two-instance parity runner](benches/TWO_INSTANCE_PARITY.md). It supports deterministic shared fixtures, read-only comparison, logical IDs, optional scores/ranking/highlights and per-server plans/timings. Local public-Lead validation is not a claim of hosted TIN parity.
 
 The [persistent SELECT/mutation/recovery tests](tests/postings-demo.md) exercise the default stored index. The [coexistence tests](tests/README.md) exercise Plumb alongside separately installed public Lead. The [baseline guide](benches/README.md) explains opt-in 100k, 1m and 10m-row SQL measurements and their resource limits. Scale up only on a disposable development database. The current implementation makes no large-dataset performance promise.
 
@@ -141,3 +168,10 @@ Report Plumb issues in [strigops-io/plumb](https://github.com/strigops-io/plumb/
 ## Attribution and license
 
 Derived from PlanetScale Lead. Existing PlanetScale copyright notices and the [AGPL-3.0-or-later license](LICENSE) are preserved. New Plumb code uses the same license. Plumb is an independent investigation; it is not PlanetScale's private TIN implementation and is not an official PlanetScale product.
+
+## ZIP checkpoints
+
+The ZIP includes full Git history. Some extractors drop executable bits, causing
+mode-only changes despite byte-identical committed files. See
+[checkpoint extraction and safe permission repair](docs/checkpoints.md); never reset
+unexplained content changes just to make Git look clean.

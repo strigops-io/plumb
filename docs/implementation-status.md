@@ -2,11 +2,12 @@
 
 ## Scope of this increment
 
-Checkpoint 004 makes grouped CTID postings the **default SQL engine**, adds bounded
-multi-segment bulk builds, and exposes owner-authorized manual immutable merging.
+Checkpoint 005 adds selective v2 term-directory/frame reads, advisory statistics,
+runtime-dispatched checksum acceleration and exact bounded heap-corpus top-k on
+the default grouped-CTID engine. Real PG17 and PG18 runtime suites pass.
 A real SELECT uses candidates read from PostgreSQL-managed WAL-logged pages. It is still a bounded proof of concept; none of the complete
 production phases in [VISION.md](../VISION.md) is declared finished. See
-[the demonstration and limitations](checkpoint-004-results.md).
+[the demonstration and limitations](checkpoint-005-results.md).
 
 Repository: `strigops-io/plumb`. Starting revision:
 `bd95c7e51b6afce81396790852ee2f2c169570ad` (Lead-derived baseline).
@@ -19,7 +20,9 @@ Repository: `strigops-io/plumb`. Starting revision:
 | CTID identity and validation | Implemented in standalone library | postings/src/lib.rs; no logical-document-ID mapping |
 | 256-page groups, masks, sparse offsets | Implemented and persisted in per-term codec frames | Query decodes CTIDs, unions terms across segments and intersects/unions grouped sets |
 | Boolean query compilation | Positive terms, AND/OR/conjunction/boost | Unsupported query shapes fall back to heap recheck; never unsafe NOT subtraction |
-| Terms, positions, frequencies and stats in storage | Sorted term dictionary implemented | No positions/frequencies/index-backed BM25; metadata stats only |
+| Terms and query statistics | Selective v2 directory and physical posting upper bounds | Legacy v1 readable; no visible df/positions/frequencies/index-backed BM25 |
+| Top-k | Exact bounded heap-corpus full BM25 | Invoker ACL/RLS and statement snapshot; not WAND or index-backed scoring |
+| Acceleration | Runtime SSE4.2 CRC32C, fast portable IEEE CRC32 | Default masks scalar after AVX2 microbenchmark regression; experimental AVX2 parity-tested |
 | Standalone postings serialization | Experimental v1 codec implemented | Canonical little-endian frame, CRC32C, allocation-free validation and explicit limits; docs/postings-format.md |
 | Metapage and segment directory | Versioned metapage plus immutable backwards-linked segments | Owner-authorized bounded replacement merge; old pages retained, no reclamation |
 | WAL, publication, recovery and replication | Generic WAL for page writes then head publication | Local immediate-stop recovery passed; replication/PITR and publication-fault campaigns unproven |
@@ -28,7 +31,36 @@ Repository: `strigops-io/plumb`. Starting revision:
 | SQL baseline harness | Implemented and exercised locally | benches/baseline.sql: deterministic corpus, full ID multiset checks, arithmetic oracle, JSON plans |
 | Production readiness / hosted escape hatch | Unproven | No performance, operational or complete hosted-compatibility conclusion yet |
 
-## Checkpoint 004 validation
+## Checkpoint 006 benchmark tooling
+
+- Added independent libpq-service endpoints for Plumb and TIN, explicit guarded
+  preparation and read-only comparison of logical IDs, native scores/ranking,
+  highlights and natural plans/timings.
+- 55 offline tests pass. Real separate servers (Plumb/PG18.6 and public Lead tin/
+  PG17.10) passed all ten cases with exact score bits, ranking and highlights.
+- Hosted PlanetScale TIN remains untested; provider labels are operator assertions.
+- No Rust extension changes or extension-suite rerun for this tooling increment.
+- See [checkpoint-006-results.md](checkpoint-006-results.md) and the
+  [two-instance guide](../benches/TWO_INSTANCE_PARITY.md).
+
+## Historical checkpoint 005 validation
+
+- 170 tests pass on real PostgreSQL 17.10 and 18.6 (109 server tests plus 61 host
+  tests per run); 383 pure Rust and 38 release postings tests pass. Clippy/format
+  and AArch64 postings compilation pass; ARM runtime remains untested.
+- Same 200k fixture, three-sample median indexed execution: rare 18.192 -> 2.071 ms,
+  absent 16.073 -> 0.190 ms after new code and v2 REINDEX. Synthetic warm results;
+  planning cost is separate and heap selectivity remains coarse.
+- Exact ordered CTID/float4-bit top-k parity: 494.644 ms vs updated reference
+  full_score+sort 948.847 ms. Corpus scan remains; this is not WAND.
+- Old v1 reads, rebuilt v2 reads and post-restart v2 queries/top-k match references.
+  Persistent-session READ COMMITTED/RR freshness passes with concurrent writers.
+- Archive001–004 contents all match HEAD; apparent dirty files reproduced only
+  when executable modes were dropped. Safe permission repair is documented/tested.
+- Details, failed-first-run findings and remaining boundaries:
+  [checkpoint-005-results.md](checkpoint-005-results.md).
+
+## Historical checkpoint 004 validation
 
 - Default no-WITH engine and unrelated reloptions select persisted v1; explicit heap
   remains available. Legacy zero-page/default indexes fail closed pending REINDEX.

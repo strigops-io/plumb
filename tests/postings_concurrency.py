@@ -171,8 +171,8 @@ def main():
     parser.add_argument('--host', required=True, help='absolute Unix socket directory only')
     parser.add_argument('--port', required=True, type=int)
     parser.add_argument('--database', required=True)
-    parser.add_argument('--log', default='/agent/workspace/postings-concurrency.log')
-    parser.add_argument('--summary', default='/agent/workspace/postings-concurrency-summary.json')
+    parser.add_argument('--log', default=str(Path(__file__).resolve().parents[2] / 'postings-concurrency.log'))
+    parser.add_argument('--summary', default=str(Path(__file__).resolve().parents[2] / 'postings-concurrency-summary.json'))
     args = parser.parse_args()
     require(args.database.startswith('plumb_postings_') and len(args.database) > 15,
             'Refusing database outside plumb_postings_ prefix')

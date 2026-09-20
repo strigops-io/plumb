@@ -69,6 +69,34 @@ fn corrupt(message: &str) -> ! {
     )
 }
 
+// Application-format failures only. PostgreSQL ERRORs (including buffer IO,
+// checksum failures raised by PostgreSQL, cancellation and OOM) are NOT caught.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReadError {
+    Corruption(String),
+    Budget(&'static str),
+}
+impl From<String> for ReadError {
+    fn from(message: String) -> Self {
+        Self::Corruption(message)
+    }
+}
+impl From<&str> for ReadError {
+    fn from(message: &str) -> Self {
+        Self::Corruption(format!(
+            "plumb postings storage is corrupt or unsupported: {message}"
+        ))
+    }
+}
+impl std::fmt::Display for ReadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Corruption(message) => f.write_str(message),
+            Self::Budget(message) => f.write_str(message),
+        }
+    }
+}
+
 /// A pin is owned immediately, before lock acquisition can throw. pgrx turns PG
 /// ERRORs into unwinding at its FFI boundary; normal Rust errors also run Drop.
 /// PostgreSQL resource-owner cleanup remains the backstop for PG error exits.
@@ -120,6 +148,10 @@ impl Buffer {
     }
 
     unsafe fn contents(&self) -> &[u8] {
+        unsafe { self.try_contents().unwrap_or_else(|e| corrupt(e)) }
+    }
+
+    unsafe fn try_contents(&self) -> Result<&[u8], &'static str> {
         unsafe {
             let page = pg_sys::BufferGetPage(self.id);
             let h = &*page.cast::<pg_sys::PageHeaderData>();
@@ -133,9 +165,12 @@ impl Buffer {
                 || h.pd_prune_xid != pg_sys::InvalidTransactionId
                 || !(PAGE_HEADER..=BLOCK_SIZE).contains(&lower)
             {
-                corrupt("invalid PostgreSQL page header");
+                return Err("invalid PostgreSQL page header");
             }
-            slice::from_raw_parts(page.cast::<u8>().add(PAGE_HEADER), lower - PAGE_HEADER)
+            Ok(slice::from_raw_parts(
+                page.cast::<u8>().add(PAGE_HEADER),
+                lower - PAGE_HEADER,
+            ))
         }
     }
 }
@@ -195,30 +230,10 @@ fn put32(bytes: &mut [u8], offset: usize, value: u32) {
     bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
 }
 
-const fn crc_table() -> [u32; 256] {
-    let mut table = [0; 256];
-    let mut i = 0;
-    while i < 256 {
-        let mut crc = i as u32;
-        let mut bit = 0;
-        while bit < 8 {
-            crc = (crc >> 1) ^ if crc & 1 != 0 { 0xedb8_8320 } else { 0 };
-            bit += 1;
-        }
-        table[i] = crc;
-        i += 1;
-    }
-    table
-}
-const CRC_TABLE: [u32; 256] = crc_table();
-// IEEE CRC32 covers every envelope field and payload byte, excluding only the
-// stored CRC itself. PostgreSQL's optional physical page checksum is separate.
+// IEEE CRC32, distinct from the Castagnoli frame checksum. A page is <=8 KiB;
+// callers retain an interrupt point for every chunk read/written.
 fn checksum(header: &[u8], payload: &[u8]) -> u32 {
-    let mut crc = !0u32;
-    for &byte in header.iter().chain(payload) {
-        crc = (crc >> 8) ^ CRC_TABLE[((crc ^ byte as u32) & 255) as usize];
-    }
-    !crc
+    plumb_postings::accel::crc32_ieee_parts([header, payload])
 }
 
 fn encode_meta(meta: Meta) -> [u8; META_SIZE] {
@@ -566,15 +581,19 @@ fn storage_stats(meta: Meta, count: u32) -> StorageStats {
 }
 
 unsafe fn snapshot(index: pg_sys::Relation) -> Option<(Meta, u32)> {
+    unsafe { try_snapshot(index).unwrap_or_else(|e| pgrx::error!("{e}")) }
+}
+
+unsafe fn try_snapshot(index: pg_sys::Relation) -> Result<Option<(Meta, u32)>, ReadError> {
     unsafe {
         if blocks(index) == 0 {
-            return None;
+            return Ok(None);
         }
         let buffer = Buffer::read(index, 0, false);
-        // Read relation size under the same lock as the committed head/counters.
+        // Same committed snapshot lock; RAII releases it on every Result exit.
         let count = blocks(index);
-        let meta = decode_meta(buffer.contents(), count).unwrap_or_else(|e| corrupt(e));
-        Some((meta, count))
+        let meta = decode_meta(buffer.try_contents()?, count)?;
+        Ok(Some((meta, count)))
     }
 }
 
@@ -594,6 +613,7 @@ pub unsafe fn stats(index: pg_sys::Relation) -> Option<StorageStats> {
 /// # Safety
 /// Caller must hold a relation lock preventing truncation and must call through
 /// a pgrx-guarded entry point. Visitor is Rust code, not an unguarded C callback.
+#[allow(dead_code)] // Retained full-validation reader API for audits and compatibility.
 pub unsafe fn visit(index: pg_sys::Relation, mut visitor: impl FnMut(&[u8])) {
     unsafe {
         let (meta, count) = snapshot(index)
@@ -658,9 +678,253 @@ unsafe fn visit_snapshot(
     }
 }
 
+// Added by Plumb contributors on 2026-09-20: captured immutable ranged reads.
+/// Borrowed relation and captured descriptor; first chunk is validated and cached.
+/// Every additional selected chunk is checked against this exact descriptor.
+pub struct RangeReader {
+    index: pg_sys::Relation,
+    segment: Segment,
+    upper: u32,
+    first: Vec<u8>,
+    pub bytes_read: usize,
+    budget: usize,
+}
+fn selected_chunk(
+    body: &[u8],
+    segment: Segment,
+    ordinal: u32,
+    upper: u32,
+) -> Result<&[u8], &'static str> {
+    let (descriptor, chunk) = decode_chunk(body, segment.root, ordinal, upper)?;
+    if descriptor != segment {
+        return Err("segment descriptors disagree across ranged chunks");
+    }
+    Ok(chunk)
+}
+
+fn checked_range(
+    total: usize,
+    offset: usize,
+    len: usize,
+    remaining_budget: usize,
+) -> Result<usize, ReadError> {
+    let end = offset
+        .checked_add(len)
+        .filter(|&end| end <= total)
+        .ok_or("invalid segment range offset/length")?;
+    if len > MAX_SEGMENT_BYTES {
+        return Err("segment range exceeds allocation bound".into());
+    }
+    // Reject before allocating even for planning's small byte budget.
+    let first_page = (offset / CHUNK_CAPACITY).max(1);
+    let last_page = end.div_ceil(CHUNK_CAPACITY);
+    let charge = if last_page > first_page {
+        total.min(last_page * CHUNK_CAPACITY) - first_page * CHUNK_CAPACITY
+    } else {
+        0
+    };
+    if charge > remaining_budget {
+        return Err(ReadError::Budget("term lookup read budget exceeded"));
+    }
+    Ok(end)
+}
+
+impl RangeReader {
+    pub fn len(&self) -> usize {
+        self.segment.bytes as usize
+    }
+    pub fn read(&mut self, offset: usize, len: usize) -> Result<Vec<u8>, String> {
+        self.read_fallible(offset, len).map_err(|e| e.to_string())
+    }
+
+    pub fn read_fallible(&mut self, offset: usize, len: usize) -> Result<Vec<u8>, ReadError> {
+        let end = checked_range(
+            self.len(),
+            offset,
+            len,
+            self.budget.saturating_sub(self.bytes_read),
+        )?;
+        // Charge page payload bytes (including duplicates), not just returned bytes.
+        let mut out = Vec::with_capacity(len);
+        let mut position = offset;
+        while position < end {
+            pgrx::check_for_interrupts!();
+            let ordinal = position / CHUNK_CAPACITY;
+            let within = position % CHUNK_CAPACITY;
+            let n = (end - position).min(CHUNK_CAPACITY - within);
+            if ordinal == 0 {
+                out.extend_from_slice(&self.first[within..within + n]);
+            } else {
+                let charge = (self.len() - ordinal * CHUNK_CAPACITY).min(CHUNK_CAPACITY);
+                if self.bytes_read + charge > self.budget {
+                    return Err(ReadError::Budget("term lookup read budget exceeded"));
+                }
+                unsafe {
+                    let buffer =
+                        Buffer::read(self.index, self.segment.root + ordinal as u32, false);
+                    let chunk = selected_chunk(
+                        buffer.try_contents()?,
+                        self.segment,
+                        ordinal as u32,
+                        self.upper,
+                    )?;
+                    out.extend_from_slice(&chunk[within..within + n]);
+                }
+                self.bytes_read += charge;
+            }
+            position += n;
+        }
+        Ok(out)
+    }
+}
+
+/// One immutable head snapshot. No pins/locks are retained during callbacks.
+/// Resource-budget failure exposes no partial query results. Unread chunks are NOT
+/// validated; full visit/merge remains the complete physical validation path.
+/// Safety: live locked relation, protected from truncation, pgrx-guarded caller.
+pub unsafe fn visit_ranges(
+    index: pg_sys::Relation,
+    max_segments: u32,
+    max_read_bytes: usize,
+    mut visitor: impl FnMut(&mut RangeReader) -> Result<(), String>,
+) -> Result<usize, String> {
+    unsafe {
+        visit_ranges_fallible(index, max_segments, max_read_bytes, |reader| {
+            visitor(reader).map_err(ReadError::Corruption)
+        })
+        .map_err(|e| e.to_string())
+    }
+}
+
+/// Fallible application-corruption/budget variant for advisory costing. It checks
+/// identical headers, CRCs and links as execution, without raising PG ERROR for
+/// our format failures. No PG_TRY: backend IO/permissions/cancel/OOM/deadlocks and
+/// arbitrary PostgreSQL errors still propagate, with normal buffer RAII cleanup.
+/// # Safety
+/// Same locked-relation and pgrx-entry contracts as visit_ranges.
+pub unsafe fn visit_ranges_fallible(
+    index: pg_sys::Relation,
+    max_segments: u32,
+    max_read_bytes: usize,
+    mut visitor: impl FnMut(&mut RangeReader) -> Result<(), ReadError>,
+) -> Result<usize, ReadError> {
+    unsafe {
+        let (meta, mut upper) = try_snapshot(index)?.ok_or("missing postings metapage")?;
+        if meta.segments > max_segments {
+            return Err(ReadError::Budget("term lookup segment budget exceeded"));
+        }
+        let mut root = meta.head;
+        let mut total = 0u64;
+        let mut read_bytes = 0usize;
+        for number in 0..meta.segments {
+            pgrx::check_for_interrupts!();
+            if root == NONE || root == 0 || root >= upper {
+                return Err("invalid ranged segment chain".into());
+            }
+            if max_read_bytes.saturating_sub(read_bytes) < CHUNK_CAPACITY {
+                return Err(ReadError::Budget("term lookup read budget exceeded"));
+            }
+            let (segment, first) = {
+                let buffer = Buffer::read(index, root, false);
+                let (segment, chunk) = decode_chunk(buffer.try_contents()?, root, 0, upper)?;
+                (segment, chunk.to_vec())
+            };
+            if segment.bytes as u64 > meta.bytes - total {
+                return Err("ranged chain exceeds byte total".into());
+            }
+            let mut reader = RangeReader {
+                index,
+                segment,
+                upper,
+                bytes_read: first.len(),
+                first,
+                budget: max_read_bytes - read_bytes,
+            };
+            visitor(&mut reader)?;
+            read_bytes += reader.bytes_read;
+            total += segment.bytes as u64;
+            let last = number + 1 == meta.segments;
+            if last != (segment.previous == NONE) || (last && total != meta.bytes) {
+                return Err("ranged chain count/byte total mismatch".into());
+            }
+            upper = root;
+            root = segment.previous;
+        }
+        if root != NONE || total != meta.bytes {
+            return Err("ranged chain count/byte total mismatch".into());
+        }
+        Ok(read_bytes)
+    }
+}
+
+// Isolated pg_test-only fixture: corrupt our CRC while preserving a valid PG
+// page and using normal WAL/buffer cleanup. Not exposed in installed SQL.
+#[cfg(feature = "pg_test")]
+pub(crate) unsafe fn damage_crc_for_test(index: pg_sys::Relation, metapage: bool) {
+    unsafe {
+        let (meta, _) = snapshot(index).expect("fixture metapage");
+        let buffer = Buffer::read(index, if metapage { 0 } else { meta.head }, true);
+        let mut body = buffer.contents().to_vec();
+        body[if metapage { 36 } else { 44 }] ^= 1;
+        write_page(index, &buffer, &body);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ranged_descriptor_crc_ordinal_and_length_checks() {
+        let segment = Segment {
+            root: 3,
+            previous: 1,
+            bytes: CHUNK_CAPACITY as u32 + 3,
+            pages: 2,
+        };
+        let last = encode_chunk(segment, 1, &[8, 9, 10]);
+        assert_eq!(selected_chunk(&last, segment, 1, 5).unwrap(), &[8, 9, 10]);
+        assert!(selected_chunk(&last, segment, 0, 5).is_err());
+        assert!(selected_chunk(&last, Segment { root: 2, ..segment }, 1, 5).is_err());
+        // Resealed, individually valid descriptors may not replace the captured one.
+        let changed = encode_chunk(
+            Segment {
+                previous: 2,
+                ..segment
+            },
+            1,
+            &[8, 9, 10],
+        );
+        assert!(selected_chunk(&changed, segment, 1, 5).is_err());
+        let mut crc_bad = last.clone();
+        crc_bad[CHUNK_HEADER] ^= 1;
+        assert!(selected_chunk(&crc_bad, segment, 1, 5).is_err());
+        let short = encode_chunk(segment, 1, &[8, 9]);
+        assert!(selected_chunk(&short, segment, 1, 5).is_err());
+    }
+
+    #[test]
+    fn ranged_arithmetic_and_read_budget_fail_before_io_or_allocation() {
+        assert!(checked_range(MAX_SEGMENT_BYTES, usize::MAX, 2, 0).is_err());
+        assert!(checked_range(MAX_SEGMENT_BYTES, MAX_SEGMENT_BYTES, 1, 0).is_err());
+        assert!(
+            checked_range(MAX_SEGMENT_BYTES, 0, MAX_SEGMENT_BYTES, 0)
+                .unwrap_err()
+                .to_string()
+                .contains("budget")
+        );
+        assert!(
+            checked_range(MAX_SEGMENT_BYTES, CHUNK_CAPACITY, 1, 0)
+                .unwrap_err()
+                .to_string()
+                .contains("budget")
+        );
+        assert_eq!(checked_range(MAX_SEGMENT_BYTES, 0, 0, 0), Ok(0));
+        assert_eq!(
+            checked_range(MAX_SEGMENT_BYTES, 0, CHUNK_CAPACITY, 0),
+            Ok(CHUNK_CAPACITY)
+        );
+    }
 
     #[test]
     fn merge_input_bounds_and_noops() {

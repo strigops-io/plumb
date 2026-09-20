@@ -34,6 +34,13 @@ use tokenizer::{CompiledTokenizerPipeline, Tokenizer};
 struct CacheKey {
     transaction: u32,
     command: u32,
+    // XID/command alone repeat in read-only READ COMMITTED transactions. Include
+    // statement/transaction time and active snapshot identity (including the
+    // transaction-completion generation, since snapshot storage is reused).
+    statement: i64,
+    transaction_start: i64,
+    snapshot: (usize, u32, u32, u32, u64),
+    user: u32,
     heap_oid: u32,
     index_oid: u32,
     query: String,
@@ -115,9 +122,39 @@ fn score_bound(
     term_add: Option<Vec<String>>,
     term_replace: Option<Vec<String>>,
 ) -> f32 {
+    if unsafe { pg_sys::GetActiveSnapshot().is_null() } {
+        pgrx::error!("plumb score requires an active statement snapshot");
+    }
+    if !(0..=3).contains(&mode) {
+        pgrx::error!("plumb score mode must be between 0 and 3");
+    }
+    // score_bound is callable by the invoker, not a trusted planner-only API.
+    // Validate before interpreting rd_options, including on cache hits. Hold the
+    // heap lock before the index lock through all permission checks and reads.
+    let (heap, index) = lock_score_relations(
+        pg_sys::Oid::from(heap_oid as u32),
+        pg_sys::Oid::from(index_oid as u32),
+    );
     let key = CacheKey {
         transaction: unsafe { pg_sys::GetTopTransactionIdIfAny().into_inner() },
         command: unsafe { pg_sys::GetCurrentCommandId(false) },
+        statement: unsafe { pg_sys::GetCurrentStatementStartTimestamp() },
+        transaction_start: unsafe { pg_sys::GetCurrentTransactionStartTimestamp() },
+        snapshot: unsafe {
+            let snapshot = pg_sys::GetActiveSnapshot();
+            if snapshot.is_null() {
+                (0, 0, 0, 0, 0)
+            } else {
+                (
+                    snapshot as usize,
+                    (*snapshot).xmin.into_inner(),
+                    (*snapshot).xmax.into_inner(),
+                    (*snapshot).curcid,
+                    (*snapshot).snapXactCompletionCount,
+                )
+            }
+        },
+        user: unsafe { pg_sys::GetUserId().to_u32() },
         heap_oid: heap_oid as u32,
         index_oid: index_oid as u32,
         query: query.to_owned(),
@@ -128,36 +165,85 @@ fn score_bound(
         add: term_add.clone(),
         replace: term_replace.clone(),
     };
-    SCORE_CACHE.with_borrow_mut(|slot| {
-        if slot.as_ref().is_none_or(|corpus| corpus.key != key) {
-            *slot = Some(build_corpus(key.clone(), k1, b, term_add, term_replace));
-        }
-        let corpus = slot.as_ref().expect("score corpus was just populated");
+    let result = |corpus: &ScoreCorpus| {
         if mode == 2 || mode == 3 {
             corpus.max
         } else {
             corpus.by_document.get(document).copied().unwrap_or(0.0)
         }
-    })
+    };
+    // A policy may depend on session settings or functions changed within the
+    // same statement. Never reuse a corpus for an RLS-enabled relation (even an
+    // owner/bypass caller); a cache key cannot describe arbitrary policy state.
+    if unsafe { (*(*heap.as_ptr()).rd_rel).relrowsecurity } {
+        return result(&build_corpus(key, &index, k1, b, term_add, term_replace));
+    }
+    let cached = SCORE_CACHE.with_borrow(|slot| {
+        slot.as_ref()
+            .filter(|corpus| corpus.key == key)
+            .map(&result)
+    });
+    if let Some(value) = cached {
+        // Do not make the cache an ACL bypass: plan/start the ordinary invoker
+        // SELECT on every hit. LIMIT 0 checks column/expression/predicate access
+        // without materializing the corpus again. No SECURITY DEFINER path.
+        // Capture only the result before entering SPI: an expression function
+        // can recursively score another relation and replace the shared cache.
+        load_documents_inner(heap.oid(), index.oid(), true);
+        return value;
+    }
+    let corpus = build_corpus(key, &index, k1, b, term_add, term_replace);
+    let value = result(&corpus);
+    SCORE_CACHE.with_borrow_mut(|slot| *slot = Some(corpus));
+    value
+}
+
+fn lock_score_relations(heap_oid: pg_sys::Oid, index_oid: pg_sys::Oid) -> (PgRelation, PgRelation) {
+    unsafe {
+        if heap_oid == pg_sys::InvalidOid || index_oid == pg_sys::InvalidOid {
+            pgrx::error!("plumb score requires a valid plumb index");
+        }
+        let heap = PgRelation::with_lock(heap_oid, pg_sys::AccessShareLock as _);
+        let index = PgRelation::with_lock(index_oid, pg_sys::AccessShareLock as _);
+        let relation = index.as_ptr();
+        if (*(*relation).rd_rel).relkind != pg_sys::RELKIND_INDEX as i8
+            || (*(*relation).rd_rel).relam != pg_sys::get_am_oid(c"plumb".as_ptr(), false)
+            || (*relation).rd_index.is_null()
+        {
+            pgrx::error!("plumb score requires a valid plumb index");
+        }
+        let definition = &*(*relation).rd_index;
+        if definition.indrelid != heap_oid || definition.indexrelid != index_oid {
+            pgrx::error!("plumb score index no longer belongs to the scored relation");
+        }
+        if !definition.indisvalid || !definition.indisready || !definition.indislive {
+            pgrx::error!("plumb score requires a valid, ready, live index");
+        }
+        // Attribute zero can denote an expression, but there must be exactly
+        // one text-valued index attribute before the loader deparses it.
+        if definition.indnatts != 1
+            || definition.indnkeyatts != 1
+            || pg_sys::get_atttype(index_oid, 1) != pg_sys::TEXTOID
+        {
+            pgrx::error!("plumb score requires a single text index attribute");
+        }
+        let kind = (*(*heap.as_ptr()).rd_rel).relkind;
+        if kind != pg_sys::RELKIND_RELATION as i8 && kind != pg_sys::RELKIND_MATVIEW as i8 {
+            pgrx::error!("plumb score requires a table or materialized view");
+        }
+        (heap, index)
+    }
 }
 
 fn build_corpus(
     key: CacheKey,
+    index: &PgRelation,
     k1: Option<f32>,
     b: Option<f32>,
     term_add: Option<Vec<String>>,
     term_replace: Option<Vec<String>>,
 ) -> ScoreCorpus {
     let heap_oid = pg_sys::Oid::from(key.heap_oid);
-    let index = unsafe {
-        PgRelation::with_lock(
-            pg_sys::Oid::from(key.index_oid),
-            pg_sys::AccessShareLock as _,
-        )
-    };
-    if unsafe { pg_sys::IndexGetRelation(index.oid(), false) } != heap_oid {
-        pgrx::error!("plumb score index no longer belongs to the scored relation");
-    }
     let tokenizer = unsafe { crate::options::tokenizer(index.as_ptr()) };
     let defaults = unsafe { crate::options::bm25(index.as_ptr()) };
     let stop_csv = unsafe { crate::options::score_stop_words(index.as_ptr()) };
@@ -187,6 +273,12 @@ fn build_corpus(
         stop_csv.as_deref().and_then(ScoreStopWords::from_csv)
     };
     let terms = compile_scoring_terms(inputs, &edit, stop.as_ref());
+    #[cfg(any(test, feature = "pg_test"))]
+    BEFORE_CORPUS_READ.with(|hook| {
+        if let Some(hook) = hook.take() {
+            hook();
+        }
+    });
     let documents = load_documents(heap_oid, index.oid());
     let tokenized = tokenize_documents(&documents, &tokenizer);
     let total_docs = tokenized.len() as u64;
@@ -236,7 +328,109 @@ fn build_corpus(
     }
 }
 
+// One-shot, backend-local hooks, absent from production builds. Tests can mutate
+// after snapshot/name capture without timing-dependent sleeps or global hooks.
+#[cfg(any(test, feature = "pg_test"))]
+thread_local! {
+    pub(crate) static BEFORE_CORPUS_READ: std::cell::Cell<Option<fn()>> = const { std::cell::Cell::new(None) };
+    pub(crate) static BEFORE_CORPUS_PREPARE: std::cell::Cell<Option<fn()>> = const { std::cell::Cell::new(None) };
+    pub(crate) static AFTER_CORPUS_PLAN: std::cell::Cell<Option<fn()>> = const { std::cell::Cell::new(None) };
+}
+
+/// Open an invoker cursor on exactly the inspected plan, at the caller's active
+/// snapshot. Requires an SPI connection and an AccessShareLock on expected_heap.
+/// Only for our single SELECT without parameters or ephemeral named relations.
+///
+/// SPI_cursor_open(plan, true) would revalidate the plan *again* after checking
+/// its RTEs. Instead, mirror SPI's unsaved-plan portal path: copy the acquired
+/// generic plan into the portal, check its first (explicit FROM) RTE, then start
+/// that very plan. Schema renames after planning cannot redirect OID-bound RTEs.
+/// Extra RTEs (RLS subqueries / inherited children) are intentionally permitted.
+/// PortalStart retains ordinary executor ACL/RLS checks, including empty scans.
+/// No GetTransactionSnapshot or CommandCounterIncrement occurs here, regardless
+/// of whether pgrx regards the enclosing transaction as mutable.
+pub(crate) unsafe fn open_corpus_cursor(sql: &CStr, expected_heap: pg_sys::Oid) -> pg_sys::Portal {
+    unsafe {
+        let snapshot = pg_sys::GetActiveSnapshot();
+        if snapshot.is_null() {
+            pgrx::error!("plumb corpus requires an active statement snapshot");
+        }
+        #[cfg(any(test, feature = "pg_test"))]
+        BEFORE_CORPUS_PREPARE.with(|hook| {
+            if let Some(hook) = hook.take() {
+                hook();
+            }
+        });
+        let plan = pg_sys::SPI_prepare_cursor(
+            sql.as_ptr(),
+            0,
+            std::ptr::null_mut(),
+            pg_sys::CURSOR_OPT_NO_SCROLL as _,
+        );
+        if plan.is_null() || !pg_sys::SPI_is_cursor_plan(plan) {
+            pgrx::error!("plumb could not prepare corpus SELECT");
+        }
+        let cached = pg_sys::SPI_plan_get_cached_plan(plan);
+        if cached.is_null() {
+            pgrx::error!("plumb could not plan corpus SELECT");
+        }
+        // Unsaved plan: this reference has no ResourceOwner registration. As in
+        // SPI, ERROR during the copy is safe: the whole SPI context is transient.
+        let portal = pg_sys::CreateNewPortal();
+        let old = pg_sys::MemoryContextSwitchTo((*portal).portalContext);
+        let statements = pg_sys::copyObjectImpl((*cached).stmt_list.cast()).cast::<pg_sys::List>();
+        let source = pg_sys::pstrdup(sql.as_ptr());
+        pg_sys::MemoryContextSwitchTo(old);
+        pg_sys::ReleaseCachedPlan(cached, std::ptr::null_mut());
+        pg_sys::SPI_freeplan(plan);
+        pg_sys::PortalDefineQuery(
+            portal,
+            std::ptr::null(),
+            source,
+            pg_sys::CommandTag::CMDTAG_SELECT,
+            statements,
+            std::ptr::null_mut(),
+        );
+        (*portal).cursorOptions = pg_sys::CURSOR_OPT_NO_SCROLL as _;
+        let statements = PgList::<pg_sys::PlannedStmt>::from_pg(statements);
+        if statements.len() != 1 {
+            pgrx::error!("plumb corpus requires one read-only SELECT");
+        }
+        let statement = statements.get_ptr(0).expect("one planned statement");
+        if (*statement).commandType != pg_sys::CmdType::CMD_SELECT
+            || !pg_sys::CommandIsReadOnly(statement)
+        {
+            pgrx::error!("plumb corpus requires one read-only SELECT");
+        }
+        let rtable = PgList::<pg_sys::RangeTblEntry>::from_pg((*statement).rtable);
+        let bound_to_heap = rtable.get_ptr(0).is_some_and(|rte| {
+            (*rte).rtekind == pg_sys::RTEKind::RTE_RELATION && (*rte).relid == expected_heap
+        });
+        if !bound_to_heap {
+            pgrx::error!("plumb corpus relation identity changed while planning; retry");
+        }
+        #[cfg(any(test, feature = "pg_test"))]
+        AFTER_CORPUS_PLAN.with(|hook| {
+            if let Some(hook) = hook.take() {
+                hook();
+            }
+        });
+        // Equivalent to SPI's read_only=true branch. No subsequent reparse or
+        // replan is possible between the check and execution of this owned copy.
+        pg_sys::PortalStart(portal, std::ptr::null_mut(), 0, snapshot);
+        portal
+    }
+}
+
 fn load_documents(heap_oid: pg_sys::Oid, index_oid: pg_sys::Oid) -> Vec<String> {
+    load_documents_inner(heap_oid, index_oid, false)
+}
+
+fn load_documents_inner(
+    heap_oid: pg_sys::Oid,
+    index_oid: pg_sys::Oid,
+    permissions_only: bool,
+) -> Vec<String> {
     unsafe {
         let relname = pg_sys::get_rel_name(heap_oid);
         let namespace = pg_sys::get_namespace_name(pg_sys::get_rel_namespace(heap_oid));
@@ -245,40 +439,89 @@ fn load_documents(heap_oid: pg_sys::Oid, index_oid: pg_sys::Oid) -> Vec<String> 
         }
         let qualified = pg_sys::quote_qualified_identifier(namespace, relname);
         let index_sql = format!(
-            "SELECT CASE WHEN i.indkey[0] = 0 \
+            "SELECT CASE WHEN i.indkey[0] OPERATOR(pg_catalog.=) 0 \
              THEN pg_catalog.pg_get_expr(i.indexprs, i.indrelid) \
              ELSE pg_catalog.quote_ident(a.attname) END, \
              pg_catalog.pg_get_expr(i.indpred, i.indrelid) \
              FROM pg_catalog.pg_index i \
              LEFT JOIN pg_catalog.pg_attribute a \
-               ON a.attrelid=i.indrelid AND a.attnum=i.indkey[0] \
-             WHERE i.indexrelid={}::oid AND i.indrelid={}::oid",
+               ON a.attrelid OPERATOR(pg_catalog.=) i.indrelid \
+               AND a.attnum OPERATOR(pg_catalog.=) i.indkey[0] \
+             WHERE i.indexrelid OPERATOR(pg_catalog.=) {}::pg_catalog.oid \
+               AND i.indrelid OPERATOR(pg_catalog.=) {}::pg_catalog.oid",
             index_oid.to_u32(),
             heap_oid.to_u32(),
         );
-        let (expression, predicate) = Spi::get_two::<String, String>(&index_sql)
-            .unwrap_or_else(|error| pgrx::error!("plumb score index lookup failed: {error}"));
-        let expression = expression
-            .unwrap_or_else(|| pgrx::error!("plumb score index expression no longer exists"));
-        let predicate = predicate
-            .map(|predicate| format!(" AND ({predicate})"))
-            .unwrap_or_default();
-        let sql = format!(
-            "SELECT ({expression})::text FROM {} WHERE ({expression}) IS NOT NULL{predicate}",
-            CStr::from_ptr(qualified).to_string_lossy(),
-        );
         Spi::connect(|client| {
-            client
-                .select(&sql, None, &[])
-                .unwrap_or_else(|error| pgrx::error!("plumb score corpus scan failed: {error}"))
-                .map(|row| {
-                    row.get::<String>(1)
-                        .unwrap_or_else(|error| {
-                            pgrx::error!("plumb score corpus row failed: {error}")
-                        })
-                        .expect("corpus query excludes null documents")
-                })
-                .collect()
+            // Neither metadata nor corpus may use pgrx's mutable-XID heuristic.
+            // In particular Spi::get_two marks the session mutable itself.
+            let index_sql = CString::new(index_sql).expect("catalog SQL contains no NUL");
+            let metadata = pg_sys::SPI_cursor_open_with_args(
+                std::ptr::null(),
+                index_sql.as_ptr(),
+                0,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null(),
+                true,
+                pg_sys::CURSOR_OPT_NO_SCROLL as _,
+            );
+            if metadata.is_null() {
+                pgrx::error!("plumb score index lookup failed");
+            }
+            let mut cursor = client
+                .find_cursor(&CStr::from_ptr((*metadata).name).to_string_lossy())
+                .expect("metadata cursor exists");
+            let row = cursor.fetch(1).expect("index metadata fetch");
+            let table_ptr = pg_sys::SPI_tuptable;
+            let (expression, predicate) = row
+                .first()
+                .get_two::<String, String>()
+                .expect("index metadata columns");
+            // Strings own their bytes; do not retain any Datum across free.
+            if !table_ptr.is_null() {
+                pg_sys::SPI_freetuptable(table_ptr);
+                pg_sys::SPI_tuptable = std::ptr::null_mut();
+            }
+            drop(cursor);
+            let expression = expression
+                .unwrap_or_else(|| pgrx::error!("plumb score index expression no longer exists"));
+            let predicate = predicate
+                .map(|predicate| format!(" AND ({predicate})"))
+                .unwrap_or_default();
+            // Keep the original expression/partial-index semantics and inherited
+            // FROM (not ONLY). This is not top_k's restricted admission contract.
+            let limit = if permissions_only { " LIMIT 0" } else { "" };
+            let sql = CString::new(format!(
+                "SELECT ({expression})::pg_catalog.text FROM {} WHERE ({expression}) IS NOT NULL{predicate}{limit}",
+                CStr::from_ptr(qualified).to_string_lossy(),
+            ))
+            .expect("catalog SQL contains no NUL");
+            let portal = open_corpus_cursor(&sql, heap_oid);
+            let mut cursor = client
+                .find_cursor(&CStr::from_ptr((*portal).name).to_string_lossy())
+                .expect("corpus cursor exists");
+            let mut documents = Vec::new();
+            loop {
+                let batch = cursor.fetch(32).expect("score corpus fetch");
+                let table_ptr = pg_sys::SPI_tuptable;
+                let count = batch.len();
+                for row in batch {
+                    documents.push(
+                        row.get::<String>(1)
+                            .expect("score corpus text column")
+                            .expect("corpus query excludes null documents"),
+                    );
+                }
+                if !table_ptr.is_null() {
+                    pg_sys::SPI_freetuptable(table_ptr);
+                    pg_sys::SPI_tuptable = std::ptr::null_mut();
+                }
+                if count == 0 {
+                    break;
+                }
+            }
+            documents
         })
     }
 }
@@ -302,7 +545,7 @@ fn tokenize_documents(
         .collect()
 }
 
-fn collect_score_terms<'a>(
+pub(crate) fn collect_score_terms<'a>(
     query: &'a Query,
     boost: f32,
     explicitly_boosted: bool,
@@ -766,7 +1009,9 @@ ALTER FUNCTION @extschema@.full_score(pg_catalog.tid) SUPPORT @extschema@.score_
 ALTER FUNCTION @extschema@.full_score(pg_catalog.tid, pg_catalog.float4, pg_catalog.float4) SUPPORT @extschema@.score_support;
 ALTER FUNCTION @extschema@.score(pg_catalog.tid, pg_catalog.float4, pg_catalog.float4, pg_catalog.float4, pg_catalog.text[], pg_catalog.text[]) SUPPORT @extschema@.score_support;
 ALTER FUNCTION @extschema@.max_score(pg_catalog.tid) SUPPORT @extschema@.score_support;
-REVOKE ALL ON FUNCTION @extschema@.score_bound(pg_catalog.text, pg_catalog.text, pg_catalog.int4, pg_catalog.int4, pg_catalog.int4, pg_catalog.float4, pg_catalog.float4, pg_catalog.float4, pg_catalog.text[], pg_catalog.text[]) FROM PUBLIC;
+-- The planner replacement is executed with ordinary caller privileges. Its
+-- runtime guards and invoker SELECT (including cache hits) enforce access.
+GRANT EXECUTE ON FUNCTION @extschema@.score_bound(pg_catalog.text, pg_catalog.text, pg_catalog.int4, pg_catalog.int4, pg_catalog.int4, pg_catalog.float4, pg_catalog.float4, pg_catalog.float4, pg_catalog.text[], pg_catalog.text[]) TO PUBLIC;
 "#,
     name = "score_support_bindings",
     requires = [

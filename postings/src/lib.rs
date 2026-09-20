@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Safe, scalar, in-memory CTID postings.
+//! Safe in-memory CTID postings with runtime-accelerated checksums and masks.
 //!
 //! This is a reference implementation of set semantics, not a persistent format
 //! or a PostgreSQL integration. Blocks are grouped in aligned ranges of 256;
@@ -21,11 +21,13 @@
 //! # Ok::<(), plumb_postings::CtidError>(())
 //! ```
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 use std::cmp::Ordering;
 use std::fmt;
 
+pub mod accel;
 pub mod codec;
 
 /// A validated physical tuple identifier, ordered by block then offset.
@@ -304,14 +306,14 @@ impl FromIterator<Ctid> for Postings {
 fn merge_group(left: &Group, right: &Group, operation: Operation) -> Group {
     debug_assert_eq!(left.base, right.base);
     let mut result = Group::new(left.base);
-    for word in 0..4 {
-        let mut candidates = match operation {
-            Operation::Union => left.mask[word] | right.mask[word],
-            Operation::Intersection => left.mask[word] & right.mask[word],
-            // Shared pages still need offset subtraction; NOT of the right
-            // page mask would incorrectly discard all their surviving offsets.
-            Operation::Difference => left.mask[word],
-        };
+    let mask = match operation {
+        Operation::Union => accel::mask_or(left.mask, right.mask),
+        Operation::Intersection => accel::mask_and(left.mask, right.mask),
+        // Shared pages still need offset subtraction; NOT of the right
+        // page mask would incorrectly discard all their surviving offsets.
+        Operation::Difference => left.mask,
+    };
+    for (word, mut candidates) in mask.into_iter().enumerate() {
         while candidates != 0 {
             let index = (word * 64 + candidates.trailing_zeros() as usize) as u8;
             candidates &= candidates - 1;

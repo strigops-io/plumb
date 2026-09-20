@@ -1,4 +1,5 @@
-# Modified by Plumb contributors on 2026-09-20: independent Plumb package and scalar test coverage.
+# Modified by Plumb contributors on 2026-09-20: PG17/18 runtime matrix, selective IO,
+# top-k/RLS regressions and portable/SIMD parity coverage.
 name: CI
 
 on:
@@ -10,6 +11,16 @@ permissions:
   contents: read
 
 jobs:
+  parity-harness:
+    name: Offline two-instance parity harness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Test parity helpers, write gates and credential-safe errors
+        run: python3 -W error -B -m unittest discover -s benches -p test_parity.py -v
+
   scalar-and-language:
     name: Scalar postings and language / ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
@@ -95,7 +106,12 @@ jobs:
           PG_MAJOR: ${{ matrix.postgres }}
         run: cargo clippy --locked --workspace --all-targets --no-default-features --features "pg${PG_MAJOR} pg_test" -- -D warnings
 
-      - name: Test local suite
+      - name: Test live PostgreSQL storage, top-k, snapshots and RLS
         env:
           PG_MAJOR: ${{ matrix.postgres }}
-        run: cargo pgrx test "pg${PG_MAJOR}" --package plumb --no-default-features --features "pg${PG_MAJOR}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo pgrx test "pg${PG_MAJOR}" --package plumb --no-default-features --features "pg${PG_MAJOR}" 2>&1 | tee "pg${PG_MAJOR}-tests.log"
+          printf '### PostgreSQL %s runtime tests\n\n' "$PG_MAJOR" >> "$GITHUB_STEP_SUMMARY"
+          sed -n '/test result:/p' "pg${PG_MAJOR}-tests.log" >> "$GITHUB_STEP_SUMMARY"

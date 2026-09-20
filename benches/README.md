@@ -1,4 +1,24 @@
-# PostgreSQL development-dataset baseline
+# PostgreSQL development-dataset benchmarks
+
+## Two independent instances: Plumb versus TIN
+
+Use [TWO_INSTANCE_PARITY.md](TWO_INSTANCE_PARITY.md) and `parity.py` for a local
+Plumb service versus an authorized PlanetScale TIN evaluation service. The runner
+prepares identical owned fixtures only with explicit write consent, then compares
+logical IDs, optional native scores/ranking/highlights, and natural plans/timings
+using two independent connections. Compare is read-only. Credentials stay in
+libpq service/passfiles; hosted TIN is not assumed or substituted.
+
+```sh
+python3 benches/parity.py compare --plumb-service plumb_local --tin-service tin_eval \
+  --run-id trial01 --out-dir parity-results/trial01-compare \
+  --with-scores --with-highlights --tin-label planetscale-tin
+```
+
+Preparation, TLS configuration, limits and report interpretation are in the guide.
+Local validation against public Lead does not establish hosted TIN compatibility.
+
+## Single-instance legacy heap baseline
 
 `baseline.sql` measures the **explicit legacy heap mode** of Plumb (`plumb` access
 method, `~~>` operator and `WITH(storage='heap')`). The default persisted engine
