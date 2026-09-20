@@ -1,0 +1,10 @@
+{"query": "american", "tags": ["term"]}
+{"query": "history", "tags": ["term"]}
+{"query": "science", "tags": ["term"]}
+{"query": "american history", "tags": ["union"]}
+{"query": "+american +history", "tags": ["intersection"]}
+{"query": "\"american history\"", "tags": ["phrase"]}
+{"query": "science technology", "tags": ["union"]}
+{"query": "+science +technology", "tags": ["intersection"]}
+{"query": "california united states", "tags": ["union"]}
+{"query": "+california +united", "tags": ["intersection"]}

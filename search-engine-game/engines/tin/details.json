@@ -1,0 +1,7 @@
+[
+  {"name": "engine", "value": "tin"},
+  {"name": "version", "value": "0.1.0"},
+  {"name": "access_method", "value": "tin"},
+  {"name": "operator", "value": "==>"},
+  {"name": "target", "value": "PlanetScale TIN (PS-5 single node)"}
+]
