@@ -1,0 +1,9 @@
+[
+  {"name": "term", "query": "common"},
+  {"name": "conjunction", "query": "common AND medium"},
+  {"name": "disjunction", "query": "rare OR medium"},
+  {"name": "phrase", "query": "\"quick brown\""},
+  {"name": "negative", "query": "common AND NOT medium"},
+  {"name": "prefix", "query": "pref*"},
+  {"name": "unicode", "query": "café"}
+]

@@ -11,6 +11,16 @@ permissions:
   contents: read
 
 jobs:
+  parity-harness:
+    name: Offline two-instance parity harness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Test parity helpers, write gates and credential-safe errors
+        run: python3 -W error -B -m unittest discover -s benches -p test_parity.py -v
+
   scalar-and-language:
     name: Scalar postings and language / ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}

@@ -5,3 +5,10 @@
 /postgres/tests/pg_regress/
 *.log
 .DS_Store
+# Modified by Plumb contributors on 2026-09-20: benchmark caches/results and local credentials.
+__pycache__/
+*.py[cod]
+/parity-results/
+.pgpass
+.pg_service.conf
+pg_service.conf

@@ -144,6 +144,8 @@ cargo test --locked -p plumb-postings -p tinql -p tokenizer -p boldi-vigna
 cargo clippy --locked -p plumb-postings --all-targets -- -D warnings
 ```
 
+For **two separate instances**—local Plumb versus an authorized PlanetScale TIN evaluation endpoint—use the [two-instance parity runner](benches/TWO_INSTANCE_PARITY.md). It supports deterministic shared fixtures, read-only comparison, logical IDs, optional scores/ranking/highlights and per-server plans/timings. Local public-Lead validation is not a claim of hosted TIN parity.
+
 The [persistent SELECT/mutation/recovery tests](tests/postings-demo.md) exercise the default stored index. The [coexistence tests](tests/README.md) exercise Plumb alongside separately installed public Lead. The [baseline guide](benches/README.md) explains opt-in 100k, 1m and 10m-row SQL measurements and their resource limits. Scale up only on a disposable development database. The current implementation makes no large-dataset performance promise.
 
 The upstream private-regression helper scripts are retained unchanged for provenance; they still target upstream `tin` and are not supported Plumb commands or part of CI. This investigation uses public source/documentation and, only when separately authorized and supplied, black-box SQL observations—not proprietary TIN source or extracted binaries.

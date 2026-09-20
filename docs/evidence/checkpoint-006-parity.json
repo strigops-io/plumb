@@ -1,0 +1,4444 @@
+{
+  "report_version": 1,
+  "created_utc": "2026-09-20T03:05:16.714888+00:00",
+  "action": "compare",
+  "run_id": "smoke007",
+  "status": "passed",
+  "tin_label": "public-lead",
+  "caveats": [
+    "Hosted PlanetScale TIN parity is unverified unless this report was produced against an authorized hosted TIN service. An extension name is not provenance.",
+    "Public Lead/local TIN runs validate the harness, not real hosted TIN parity; the TIN label is an unverified operator assertion.",
+    "Endpoint identity is an accident guard, not proof against aliases or proxies.",
+    "Independent servers share no snapshot. Before/after fingerprints detect drift but cannot rule out intervening ABA mutations.",
+    "Different hardware, PostgreSQL majors, services, caches and network prevent generic performance superiority claims.",
+    "This bounded deterministic corpus is not full application or full-scale workload coverage. ANSI highlighting is not tested."
+  ],
+  "configuration": {
+    "max_results": 20000,
+    "samples": 1,
+    "with_scores": true,
+    "with_highlights": true,
+    "top_k": 20,
+    "atol": 1e-06,
+    "rtol": 1e-05
+  },
+  "endpoints": {
+    "plumb": {
+      "server_version": "18.6",
+      "server_encoding": "UTF8",
+      "client_encoding": "UTF8",
+      "lc_ctype": "C.UTF-8",
+      "lc_collate": "C.UTF-8",
+      "provider": "plumb",
+      "extension_version": "0.1.0",
+      "am": true,
+      "operator": true,
+      "full_score": true,
+      "highlight": true,
+      "schema_exists": true,
+      "can_create_schema": true,
+      "in_recovery": false
+    },
+    "tin": {
+      "server_version": "17.10",
+      "server_encoding": "UTF8",
+      "client_encoding": "UTF8",
+      "lc_ctype": "C.UTF-8",
+      "lc_collate": "C.UTF-8",
+      "provider": "tin",
+      "extension_version": "1.0.3",
+      "am": true,
+      "operator": true,
+      "full_score": true,
+      "highlight": true,
+      "schema_exists": true,
+      "can_create_schema": true,
+      "in_recovery": false
+    }
+  },
+  "markers": {
+    "plumb": {
+      "provider": "plumb",
+      "run_id": "smoke007",
+      "corpus_version": "v1",
+      "seed": 1729,
+      "regular_rows": 1000,
+      "expected_rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290"
+    },
+    "tin": {
+      "provider": "tin",
+      "run_id": "smoke007",
+      "corpus_version": "v1",
+      "seed": 1729,
+      "regular_rows": 1000,
+      "expected_rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290"
+    }
+  },
+  "fingerprints_before": {
+    "plumb": {
+      "rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290",
+      "search_indexes": [
+        {
+          "name": "docs_search_idx",
+          "definition": "CREATE INDEX docs_search_idx ON plumb_parity_smoke007.docs USING plumb (body)",
+          "reloptions": [],
+          "indnkeyatts": 1,
+          "opclasses": [
+            {
+              "schema": "plumb",
+              "name": "plumb_text_ops"
+            }
+          ]
+        }
+      ]
+    },
+    "tin": {
+      "rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290",
+      "search_indexes": [
+        {
+          "name": "docs_search_idx",
+          "definition": "CREATE INDEX docs_search_idx ON plumb_parity_smoke007.docs USING tin (body)",
+          "reloptions": [],
+          "indnkeyatts": 1,
+          "opclasses": [
+            {
+              "schema": "tin",
+              "name": "tin_text_ops"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "common",
+      "query": "common",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 16.798011998616857,
+          "returned_rows": 1001,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Seq Scan",
+                    "Relation Name": "docs"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 44.22,
+                    "Total Cost": 45.48,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 5.816,
+                    "Actual Total Time": 5.895,
+                    "Actual Rows": 1001.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 44.22,
+                        "Total Cost": 45.48,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 5.815,
+                        "Actual Total Time": 5.846,
+                        "Actual Rows": 1001.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 0.0,
+                            "Total Cost": 21.6,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.033,
+                            "Actual Total Time": 5.668,
+                            "Actual Rows": 1001.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Filter": "(body ~~> 'common'::text)",
+                            "Rows Removed by Filter": 7,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.643,
+                  "Triggers": [],
+                  "Execution Time": 5.957
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.643,
+              "min_ms": 1.643,
+              "max_ms": 1.643
+            },
+            "server_execution": {
+              "median_ms": 5.957,
+              "min_ms": 5.957,
+              "max_ms": 5.957
+            },
+            "client_round_trip": {
+              "median_ms": 15.3805910013034,
+              "min_ms": 15.3805910013034,
+              "max_ms": 15.3805910013034
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 105.04401799698826,
+          "returned_rows": 1001,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 95.221,
+                    "Actual Total Time": 95.303,
+                    "Actual Rows": 1001,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 95.22,
+                        "Actual Total Time": 95.252,
+                        "Actual Rows": 1001,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.345,
+                            "Actual Total Time": 95.012,
+                            "Actual Rows": 1001,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'common'::text)",
+                            "Rows Removed by Index Recheck": 7,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.021,
+                                "Actual Total Time": 0.021,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'common'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.562,
+                  "Triggers": [],
+                  "Execution Time": 95.368
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.562,
+              "min_ms": 1.562,
+              "max_ms": 1.562
+            },
+            "server_execution": {
+              "median_ms": 95.368,
+              "min_ms": 95.368,
+              "max_ms": 95.368
+            },
+            "client_round_trip": {
+              "median_ms": 102.75853500206722,
+              "min_ms": 102.75853500206722,
+              "max_ms": 102.75853500206722
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 1001,
+        "right_count": 1001,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            8,
+            9,
+            10,
+            12,
+            13,
+            16,
+            17,
+            18,
+            19,
+            20,
+            22,
+            23,
+            24,
+            25,
+            27
+          ],
+          "tin": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            8,
+            9,
+            10,
+            12,
+            13,
+            16,
+            17,
+            18,
+            19,
+            20,
+            22,
+            23,
+            24,
+            25,
+            27
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "medium",
+      "query": "medium",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 12.799312000424834,
+          "returned_rows": 100,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 37.25,
+                    "Total Cost": 38.51,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 0.863,
+                    "Actual Total Time": 0.872,
+                    "Actual Rows": 100.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 23,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 37.25,
+                        "Total Cost": 38.51,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 0.862,
+                        "Actual Total Time": 0.866,
+                        "Actual Rows": 100.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 23,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 4.38,
+                            "Total Cost": 14.63,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.17,
+                            "Actual Total Time": 0.776,
+                            "Actual Rows": 100.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> 'medium'::text)",
+                            "Rows Removed by Index Recheck": 0,
+                            "Exact Heap Blocks": 9,
+                            "Lossy Heap Blocks": 0,
+                            "Shared Hit Blocks": 20,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 4.25,
+                                "Plan Rows": 100,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.141,
+                                "Actual Total Time": 0.141,
+                                "Actual Rows": 100.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> 'medium'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 11,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.642,
+                  "Triggers": [],
+                  "Execution Time": 0.918
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.642,
+              "min_ms": 1.642,
+              "max_ms": 1.642
+            },
+            "server_execution": {
+              "median_ms": 0.918,
+              "min_ms": 0.918,
+              "max_ms": 0.918
+            },
+            "client_round_trip": {
+              "median_ms": 10.76801199815236,
+              "min_ms": 10.76801199815236,
+              "max_ms": 10.76801199815236
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 102.39466299753985,
+          "returned_rows": 100,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 94.104,
+                    "Actual Total Time": 94.114,
+                    "Actual Rows": 100,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 94.104,
+                        "Actual Total Time": 94.107,
+                        "Actual Rows": 100,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.331,
+                            "Actual Total Time": 94.069,
+                            "Actual Rows": 100,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'medium'::text)",
+                            "Rows Removed by Index Recheck": 908,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.017,
+                                "Actual Total Time": 0.017,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'medium'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.497,
+                  "Triggers": [],
+                  "Execution Time": 94.152
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.497,
+              "min_ms": 1.497,
+              "max_ms": 1.497
+            },
+            "server_execution": {
+              "median_ms": 94.152,
+              "min_ms": 94.152,
+              "max_ms": 94.152
+            },
+            "client_round_trip": {
+              "median_ms": 101.64302200064412,
+              "min_ms": 101.64302200064412,
+              "max_ms": 101.64302200064412
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 100,
+        "right_count": 100,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            11,
+            21,
+            31,
+            39,
+            49,
+            59,
+            79,
+            89,
+            99,
+            117,
+            127,
+            147,
+            157,
+            167,
+            177,
+            185,
+            195,
+            215,
+            235,
+            245
+          ],
+          "tin": [
+            11,
+            21,
+            31,
+            39,
+            49,
+            59,
+            79,
+            89,
+            99,
+            117,
+            127,
+            147,
+            157,
+            167,
+            177,
+            185,
+            195,
+            215,
+            235,
+            245
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "rare",
+      "query": "rare",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 11.10387800144963,
+          "returned_rows": 2,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 31.95,
+                    "Total Cost": 33.21,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 0.265,
+                    "Actual Total Time": 0.266,
+                    "Actual Rows": 2.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 16,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 31.95,
+                        "Total Cost": 33.21,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 0.264,
+                        "Actual Total Time": 0.265,
+                        "Actual Rows": 2.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 16,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 4.13,
+                            "Total Cost": 9.33,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.167,
+                            "Actual Total Time": 0.176,
+                            "Actual Rows": 2.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> 'rare'::text)",
+                            "Rows Removed by Index Recheck": 0,
+                            "Exact Heap Blocks": 2,
+                            "Lossy Heap Blocks": 0,
+                            "Shared Hit Blocks": 13,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 4.0,
+                                "Plan Rows": 2,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.139,
+                                "Actual Total Time": 0.14,
+                                "Actual Rows": 2.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> 'rare'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 11,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.677,
+                  "Triggers": [],
+                  "Execution Time": 0.319
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.677,
+              "min_ms": 1.677,
+              "max_ms": 1.677
+            },
+            "server_execution": {
+              "median_ms": 0.319,
+              "min_ms": 0.319,
+              "max_ms": 0.319
+            },
+            "client_round_trip": {
+              "median_ms": 10.156611999263987,
+              "min_ms": 10.156611999263987,
+              "max_ms": 10.156611999263987
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 96.63138399992022,
+          "returned_rows": 2,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 88.693,
+                    "Actual Total Time": 88.694,
+                    "Actual Rows": 2,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 88.691,
+                        "Actual Total Time": 88.692,
+                        "Actual Rows": 2,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 32.608,
+                            "Actual Total Time": 88.675,
+                            "Actual Rows": 2,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'rare'::text)",
+                            "Rows Removed by Index Recheck": 1006,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.017,
+                                "Actual Total Time": 0.018,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'rare'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.505,
+                  "Triggers": [],
+                  "Execution Time": 88.732
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.505,
+              "min_ms": 1.505,
+              "max_ms": 1.505
+            },
+            "server_execution": {
+              "median_ms": 88.732,
+              "min_ms": 88.732,
+              "max_ms": 88.732
+            },
+            "client_round_trip": {
+              "median_ms": 95.83869700145442,
+              "min_ms": 95.83869700145442,
+              "max_ms": 95.83869700145442
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 2,
+        "right_count": 2,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            1006,
+            368
+          ],
+          "tin": [
+            1006,
+            368
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "and",
+      "query": "common AND medium",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 12.045469997246983,
+          "returned_rows": 100,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 39.25,
+                    "Total Cost": 40.51,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 1.242,
+                    "Actual Total Time": 1.25,
+                    "Actual Rows": 100.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 25,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 39.25,
+                        "Total Cost": 40.51,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 1.241,
+                        "Actual Total Time": 1.244,
+                        "Actual Rows": 100.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 25,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 6.38,
+                            "Total Cost": 16.63,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.201,
+                            "Actual Total Time": 1.152,
+                            "Actual Rows": 100.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> 'common AND medium'::text)",
+                            "Rows Removed by Index Recheck": 0,
+                            "Exact Heap Blocks": 9,
+                            "Lossy Heap Blocks": 0,
+                            "Shared Hit Blocks": 22,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 6.25,
+                                "Plan Rows": 100,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.166,
+                                "Actual Total Time": 0.166,
+                                "Actual Rows": 100.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> 'common AND medium'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 13,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.7,
+                  "Triggers": [],
+                  "Execution Time": 1.297
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.7,
+              "min_ms": 1.7,
+              "max_ms": 1.7
+            },
+            "server_execution": {
+              "median_ms": 1.297,
+              "min_ms": 1.297,
+              "max_ms": 1.297
+            },
+            "client_round_trip": {
+              "median_ms": 10.940879998088349,
+              "min_ms": 10.940879998088349,
+              "max_ms": 10.940879998088349
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 171.81562800033134,
+          "returned_rows": 100,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 163.788,
+                    "Actual Total Time": 163.798,
+                    "Actual Rows": 100,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 163.787,
+                        "Actual Total Time": 163.791,
+                        "Actual Rows": 100,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.414,
+                            "Actual Total Time": 163.742,
+                            "Actual Rows": 100,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'common AND medium'::text)",
+                            "Rows Removed by Index Recheck": 908,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.018,
+                                "Actual Total Time": 0.018,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'common AND medium'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.521,
+                  "Triggers": [],
+                  "Execution Time": 163.84
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.521,
+              "min_ms": 1.521,
+              "max_ms": 1.521
+            },
+            "server_execution": {
+              "median_ms": 163.84,
+              "min_ms": 163.84,
+              "max_ms": 163.84
+            },
+            "client_round_trip": {
+              "median_ms": 171.5857050003251,
+              "min_ms": 171.5857050003251,
+              "max_ms": 171.5857050003251
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 100,
+        "right_count": 100,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            11,
+            21,
+            31,
+            39,
+            49,
+            59,
+            79,
+            89,
+            99,
+            117,
+            127,
+            147,
+            157,
+            167,
+            177,
+            185,
+            195,
+            215,
+            235,
+            245
+          ],
+          "tin": [
+            11,
+            21,
+            31,
+            39,
+            49,
+            59,
+            79,
+            89,
+            99,
+            117,
+            127,
+            147,
+            157,
+            167,
+            177,
+            185,
+            195,
+            215,
+            235,
+            245
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "or",
+      "query": "rare OR medium",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 12.919071999931475,
+          "returned_rows": 101,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 39.28,
+                    "Total Cost": 40.54,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 1.224,
+                    "Actual Total Time": 1.233,
+                    "Actual Rows": 101.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 24,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 39.28,
+                        "Total Cost": 40.54,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 1.224,
+                        "Actual Total Time": 1.227,
+                        "Actual Rows": 101.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 24,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 6.38,
+                            "Total Cost": 16.66,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.189,
+                            "Actual Total Time": 1.137,
+                            "Actual Rows": 101.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> 'rare OR medium'::text)",
+                            "Rows Removed by Index Recheck": 0,
+                            "Exact Heap Blocks": 9,
+                            "Lossy Heap Blocks": 0,
+                            "Shared Hit Blocks": 21,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 6.25,
+                                "Plan Rows": 102,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.154,
+                                "Actual Total Time": 0.154,
+                                "Actual Rows": 101.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> 'rare OR medium'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 12,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.679,
+                  "Triggers": [],
+                  "Execution Time": 1.28
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.679,
+              "min_ms": 1.679,
+              "max_ms": 1.679
+            },
+            "server_execution": {
+              "median_ms": 1.28,
+              "min_ms": 1.28,
+              "max_ms": 1.28
+            },
+            "client_round_trip": {
+              "median_ms": 11.196281997399637,
+              "min_ms": 11.196281997399637,
+              "max_ms": 11.196281997399637
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 169.21359099796973,
+          "returned_rows": 101,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 160.658,
+                    "Actual Total Time": 160.668,
+                    "Actual Rows": 101,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 160.657,
+                        "Actual Total Time": 160.661,
+                        "Actual Rows": 101,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.453,
+                            "Actual Total Time": 160.615,
+                            "Actual Rows": 101,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'rare OR medium'::text)",
+                            "Rows Removed by Index Recheck": 907,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.018,
+                                "Actual Total Time": 0.019,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'rare OR medium'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.657,
+                  "Triggers": [],
+                  "Execution Time": 160.711
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.657,
+              "min_ms": 1.657,
+              "max_ms": 1.657
+            },
+            "server_execution": {
+              "median_ms": 160.711,
+              "min_ms": 160.711,
+              "max_ms": 160.711
+            },
+            "client_round_trip": {
+              "median_ms": 169.0464620005514,
+              "min_ms": 169.0464620005514,
+              "max_ms": 169.0464620005514
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 101,
+        "right_count": 101,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            1006,
+            368,
+            11,
+            21,
+            31,
+            39,
+            49,
+            59,
+            79,
+            89,
+            99,
+            117,
+            127,
+            147,
+            157,
+            167,
+            177,
+            185,
+            195,
+            215
+          ],
+          "tin": [
+            1006,
+            368,
+            11,
+            21,
+            31,
+            39,
+            49,
+            59,
+            79,
+            89,
+            99,
+            117,
+            127,
+            147,
+            157,
+            167,
+            177,
+            185,
+            195,
+            215
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "absent",
+      "query": "unfindablexyzzy",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 11.224257003050297,
+          "returned_rows": 0,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 27.76,
+                    "Total Cost": 29.02,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 0.213,
+                    "Actual Total Time": 0.214,
+                    "Actual Rows": 0.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 13,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 27.76,
+                        "Total Cost": 29.02,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 0.212,
+                        "Actual Total Time": 0.213,
+                        "Actual Rows": 0.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 13,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 1.13,
+                            "Total Cost": 5.14,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.13,
+                            "Actual Total Time": 0.131,
+                            "Actual Rows": 0.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> 'unfindablexyzzy'::text)",
+                            "Rows Removed by Index Recheck": 0,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 0,
+                            "Shared Hit Blocks": 10,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 1.0,
+                                "Plan Rows": 1,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.123,
+                                "Actual Total Time": 0.124,
+                                "Actual Rows": 0.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> 'unfindablexyzzy'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 10,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.666,
+                  "Triggers": [],
+                  "Execution Time": 0.257
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.666,
+              "min_ms": 1.666,
+              "max_ms": 1.666
+            },
+            "server_execution": {
+              "median_ms": 0.257,
+              "min_ms": 0.257,
+              "max_ms": 0.257
+            },
+            "client_round_trip": {
+              "median_ms": 10.006204000092112,
+              "min_ms": 10.006204000092112,
+              "max_ms": 10.006204000092112
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 125.40407500273432,
+          "returned_rows": 0,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 116.767,
+                    "Actual Total Time": 116.768,
+                    "Actual Rows": 0,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 116.766,
+                        "Actual Total Time": 116.767,
+                        "Actual Rows": 0,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 116.748,
+                            "Actual Total Time": 116.749,
+                            "Actual Rows": 0,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'unfindablexyzzy'::text)",
+                            "Rows Removed by Index Recheck": 1008,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.016,
+                                "Actual Total Time": 0.017,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'unfindablexyzzy'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.494,
+                  "Triggers": [],
+                  "Execution Time": 116.804
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.494,
+              "min_ms": 1.494,
+              "max_ms": 1.494
+            },
+            "server_execution": {
+              "median_ms": 116.804,
+              "min_ms": 116.804,
+              "max_ms": 116.804
+            },
+            "client_round_trip": {
+              "median_ms": 124.95207699976163,
+              "min_ms": 124.95207699976163,
+              "max_ms": 124.95207699976163
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 0,
+        "right_count": 0,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [],
+          "tin": []
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "phrase",
+      "query": "\"quick brown\"",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 18.09489900188055,
+          "returned_rows": 144,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 6.827,
+                    "Actual Total Time": 6.84,
+                    "Actual Rows": 144.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 20,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 6.827,
+                        "Actual Total Time": 6.832,
+                        "Actual Rows": 144.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 20,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.164,
+                            "Actual Total Time": 6.74,
+                            "Actual Rows": 144.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> '\"quick brown\"'::text)",
+                            "Rows Removed by Index Recheck": 864,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 17,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.113,
+                                "Actual Total Time": 0.114,
+                                "Actual Rows": 90.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> '\"quick brown\"'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 8,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 88,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.668,
+                  "Triggers": [],
+                  "Execution Time": 6.888
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.668,
+              "min_ms": 1.668,
+              "max_ms": 1.668
+            },
+            "server_execution": {
+              "median_ms": 6.888,
+              "min_ms": 6.888,
+              "max_ms": 6.888
+            },
+            "client_round_trip": {
+              "median_ms": 16.910219001147198,
+              "min_ms": 16.910219001147198,
+              "max_ms": 16.910219001147198
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 120.03954000101658,
+          "returned_rows": 144,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 113.046,
+                    "Actual Total Time": 113.059,
+                    "Actual Rows": 144,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 113.045,
+                        "Actual Total Time": 113.05,
+                        "Actual Rows": 144,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.361,
+                            "Actual Total Time": 112.991,
+                            "Actual Rows": 144,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> '\"quick brown\"'::text)",
+                            "Rows Removed by Index Recheck": 864,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.017,
+                                "Actual Total Time": 0.017,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> '\"quick brown\"'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.571,
+                  "Triggers": [],
+                  "Execution Time": 113.1
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.571,
+              "min_ms": 1.571,
+              "max_ms": 1.571
+            },
+            "server_execution": {
+              "median_ms": 113.1,
+              "min_ms": 113.1,
+              "max_ms": 113.1
+            },
+            "client_round_trip": {
+              "median_ms": 120.72223900031531,
+              "min_ms": 120.72223900031531,
+              "max_ms": 120.72223900031531
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 144,
+        "right_count": 144,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            1004,
+            14,
+            15,
+            28,
+            29,
+            41,
+            42,
+            55,
+            56,
+            70,
+            82,
+            83,
+            96,
+            110,
+            123,
+            124,
+            138,
+            150,
+            151,
+            164
+          ],
+          "tin": [
+            1004,
+            14,
+            15,
+            28,
+            29,
+            41,
+            42,
+            55,
+            56,
+            70,
+            82,
+            83,
+            96,
+            110,
+            123,
+            124,
+            138,
+            150,
+            151,
+            164
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "not",
+      "query": "common AND NOT medium",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 21.174052999413107,
+          "returned_rows": 901,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 9.774,
+                    "Actual Total Time": 9.844,
+                    "Actual Rows": 901.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 20,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 9.773,
+                        "Actual Total Time": 9.8,
+                        "Actual Rows": 901.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 20,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.168,
+                            "Actual Total Time": 9.64,
+                            "Actual Rows": 901.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> 'common AND NOT medium'::text)",
+                            "Rows Removed by Index Recheck": 107,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 17,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.108,
+                                "Actual Total Time": 0.108,
+                                "Actual Rows": 90.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> 'common AND NOT medium'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 8,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 88,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.624,
+                  "Triggers": [],
+                  "Execution Time": 9.909
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.624,
+              "min_ms": 1.624,
+              "max_ms": 1.624
+            },
+            "server_execution": {
+              "median_ms": 9.909,
+              "min_ms": 9.909,
+              "max_ms": 9.909
+            },
+            "client_round_trip": {
+              "median_ms": 19.932332997996127,
+              "min_ms": 19.932332997996127,
+              "max_ms": 19.932332997996127
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 171.3345569987723,
+          "returned_rows": 901,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 162.294,
+                    "Actual Total Time": 162.368,
+                    "Actual Rows": 901,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 162.293,
+                        "Actual Total Time": 162.321,
+                        "Actual Rows": 901,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.644,
+                            "Actual Total Time": 162.074,
+                            "Actual Rows": 901,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'common AND NOT medium'::text)",
+                            "Rows Removed by Index Recheck": 107,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.018,
+                                "Actual Total Time": 0.019,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'common AND NOT medium'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.701,
+                  "Triggers": [],
+                  "Execution Time": 162.439
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.701,
+              "min_ms": 1.701,
+              "max_ms": 1.701
+            },
+            "server_execution": {
+              "median_ms": 162.439,
+              "min_ms": 162.439,
+              "max_ms": 162.439
+            },
+            "client_round_trip": {
+              "median_ms": 171.46613799923216,
+              "min_ms": 171.46613799923216,
+              "max_ms": 171.46613799923216
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 901,
+        "right_count": 901,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            8,
+            9,
+            10,
+            12,
+            13,
+            16,
+            17,
+            18,
+            19,
+            20,
+            22,
+            23,
+            24,
+            25,
+            27
+          ],
+          "tin": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            8,
+            9,
+            10,
+            12,
+            13,
+            16,
+            17,
+            18,
+            19,
+            20,
+            22,
+            23,
+            24,
+            25,
+            27
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "wildcard",
+      "query": "pref*",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 112.87333099971875,
+          "returned_rows": 144,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 100.66,
+                    "Actual Total Time": 100.673,
+                    "Actual Rows": 144.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 20,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 100.659,
+                        "Actual Total Time": 100.665,
+                        "Actual Rows": 144.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 20,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.477,
+                            "Actual Total Time": 100.565,
+                            "Actual Rows": 144.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> 'pref*'::text)",
+                            "Rows Removed by Index Recheck": 864,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 17,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.113,
+                                "Actual Total Time": 0.113,
+                                "Actual Rows": 90.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> 'pref*'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 8,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 88,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.659,
+                  "Triggers": [],
+                  "Execution Time": 100.721
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.659,
+              "min_ms": 1.659,
+              "max_ms": 1.659
+            },
+            "server_execution": {
+              "median_ms": 100.721,
+              "min_ms": 100.721,
+              "max_ms": 100.721
+            },
+            "client_round_trip": {
+              "median_ms": 111.24530699817115,
+              "min_ms": 111.24530699817115,
+              "max_ms": 111.24530699817115
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 1824.4035690004239,
+          "returned_rows": 144,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 1813.851,
+                    "Actual Total Time": 1813.865,
+                    "Actual Rows": 144,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 1813.85,
+                        "Actual Total Time": 1813.855,
+                        "Actual Rows": 144,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 2.463,
+                            "Actual Total Time": 1813.743,
+                            "Actual Rows": 144,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'pref*'::text)",
+                            "Rows Removed by Index Recheck": 864,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.02,
+                                "Actual Total Time": 0.021,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'pref*'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.797,
+                  "Triggers": [],
+                  "Execution Time": 1813.915
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.797,
+              "min_ms": 1.797,
+              "max_ms": 1.797
+            },
+            "server_execution": {
+              "median_ms": 1813.915,
+              "min_ms": 1813.915,
+              "max_ms": 1813.915
+            },
+            "client_round_trip": {
+              "median_ms": 1823.2679499997175,
+              "min_ms": 1823.2679499997175,
+              "max_ms": 1823.2679499997175
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 144,
+        "right_count": 144,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            1,
+            14,
+            15,
+            28,
+            29,
+            41,
+            42,
+            55,
+            56,
+            69,
+            70,
+            82,
+            83,
+            96,
+            97,
+            109,
+            110,
+            123,
+            124,
+            137
+          ],
+          "tin": [
+            1,
+            14,
+            15,
+            28,
+            29,
+            41,
+            42,
+            55,
+            56,
+            69,
+            70,
+            82,
+            83,
+            96,
+            97,
+            109,
+            110,
+            123,
+            124,
+            137
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    },
+    {
+      "name": "unicode",
+      "query": "café",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 13.157534998754272,
+          "returned_rows": 77,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.9,
+                    "Total Cost": 38.16,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 0.738,
+                    "Actual Total Time": 0.746,
+                    "Actual Rows": 77.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 23,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.9,
+                        "Total Cost": 38.16,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 0.737,
+                        "Actual Total Time": 0.741,
+                        "Actual Rows": 77.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 23,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 4.32,
+                            "Total Cost": 14.28,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.18,
+                            "Actual Total Time": 0.647,
+                            "Actual Rows": 77.0,
+                            "Actual Loops": 1,
+                            "Disabled": false,
+                            "Recheck Cond": "(body ~~> 'café'::text)",
+                            "Rows Removed by Index Recheck": 0,
+                            "Exact Heap Blocks": 9,
+                            "Lossy Heap Blocks": 0,
+                            "Shared Hit Blocks": 20,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 4.19,
+                                "Plan Rows": 77,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.149,
+                                "Actual Total Time": 0.149,
+                                "Actual Rows": 77.0,
+                                "Actual Loops": 1,
+                                "Disabled": false,
+                                "Index Cond": "(body ~~> 'café'::text)",
+                                "Index Searches": 0,
+                                "Shared Hit Blocks": 11,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.799,
+                  "Triggers": [],
+                  "Execution Time": 0.808
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.799,
+              "min_ms": 1.799,
+              "max_ms": 1.799
+            },
+            "server_execution": {
+              "median_ms": 0.808,
+              "min_ms": 0.808,
+              "max_ms": 0.808
+            },
+            "client_round_trip": {
+              "median_ms": 11.189985001692548,
+              "min_ms": 11.189985001692548,
+              "max_ms": 11.189985001692548
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 102.02855600073235,
+          "returned_rows": 77,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Sort"
+                  },
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Relation Name": "docs"
+                  },
+                  {
+                    "Node Type": "Bitmap Index Scan",
+                    "Index Name": "docs_search_idx"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 36.53,
+                    "Total Cost": 37.79,
+                    "Plan Rows": 504,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 92.865,
+                    "Actual Total Time": 92.873,
+                    "Actual Rows": 77,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 12,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 36.53,
+                        "Total Cost": 37.79,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 92.864,
+                        "Actual Total Time": 92.867,
+                        "Actual Rows": 77,
+                        "Actual Loops": 1,
+                        "Sort Key": [
+                          "id"
+                        ],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 25,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 12,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Heap Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "docs",
+                            "Alias": "docs",
+                            "Startup Cost": 3.65,
+                            "Total Cost": 13.91,
+                            "Plan Rows": 504,
+                            "Plan Width": 8,
+                            "Actual Startup Time": 0.984,
+                            "Actual Total Time": 92.83,
+                            "Actual Rows": 77,
+                            "Actual Loops": 1,
+                            "Recheck Cond": "(body ==> 'café'::text)",
+                            "Rows Removed by Index Recheck": 931,
+                            "Exact Heap Blocks": 0,
+                            "Lossy Heap Blocks": 9,
+                            "Shared Hit Blocks": 9,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0,
+                            "Plans": [
+                              {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Parallel Aware": false,
+                                "Async Capable": false,
+                                "Index Name": "docs_search_idx",
+                                "Startup Cost": 0.0,
+                                "Total Cost": 3.52,
+                                "Plan Rows": 101,
+                                "Plan Width": 0,
+                                "Actual Startup Time": 0.022,
+                                "Actual Total Time": 0.022,
+                                "Actual Rows": 90,
+                                "Actual Loops": 1,
+                                "Index Cond": "(body ==> 'café'::text)",
+                                "Shared Hit Blocks": 0,
+                                "Shared Read Blocks": 0,
+                                "Shared Dirtied Blocks": 0,
+                                "Shared Written Blocks": 0,
+                                "Local Hit Blocks": 0,
+                                "Local Read Blocks": 0,
+                                "Local Dirtied Blocks": 0,
+                                "Local Written Blocks": 0,
+                                "Temp Read Blocks": 0,
+                                "Temp Written Blocks": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.72,
+                  "Triggers": [],
+                  "Execution Time": 92.917
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.72,
+              "min_ms": 1.72,
+              "max_ms": 1.72
+            },
+            "server_execution": {
+              "median_ms": 92.917,
+              "min_ms": 92.917,
+              "max_ms": 92.917
+            },
+            "client_round_trip": {
+              "median_ms": 102.74023999954807,
+              "min_ms": 102.74023999954807,
+              "max_ms": 102.74023999954807
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 77,
+        "right_count": 77,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      },
+      "scores": {
+        "equal": true,
+        "missing_ids": [],
+        "extra_ids": [],
+        "missing_count": 0,
+        "extra_count": 0,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "float4_bits_equal": true,
+        "float4_bit_mismatch_count": 0,
+        "float4_bit_mismatch_ids": [],
+        "atol": 1e-06,
+        "rtol": 1e-05,
+        "tolerance_rule": "abs(left-right) <= atol + rtol*abs(right)",
+        "float4_wire_bits_equal": true
+      },
+      "rank": {
+        "equal": true,
+        "top_k": 20,
+        "ids": {
+          "plumb": [
+            7,
+            26,
+            33,
+            45,
+            52,
+            71,
+            90,
+            116,
+            135,
+            142,
+            154,
+            161,
+            180,
+            199,
+            244,
+            251,
+            270,
+            289,
+            308,
+            334
+          ],
+          "tin": [
+            7,
+            26,
+            33,
+            45,
+            52,
+            71,
+            90,
+            116,
+            135,
+            142,
+            154,
+            161,
+            180,
+            199,
+            244,
+            251,
+            270,
+            289,
+            308,
+            334
+          ]
+        }
+      },
+      "highlights": {
+        "equal": true,
+        "mismatch_count": 0,
+        "mismatch_ids": []
+      }
+    }
+  ],
+  "selected_suite_errors": [],
+  "fingerprints_after": {
+    "plumb": {
+      "rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290",
+      "search_indexes": [
+        {
+          "name": "docs_search_idx",
+          "definition": "CREATE INDEX docs_search_idx ON plumb_parity_smoke007.docs USING plumb (body)",
+          "reloptions": [],
+          "indnkeyatts": 1,
+          "opclasses": [
+            {
+              "schema": "plumb",
+              "name": "plumb_text_ops"
+            }
+          ]
+        }
+      ]
+    },
+    "tin": {
+      "rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290",
+      "search_indexes": [
+        {
+          "name": "docs_search_idx",
+          "definition": "CREATE INDEX docs_search_idx ON plumb_parity_smoke007.docs USING tin (body)",
+          "reloptions": [],
+          "indnkeyatts": 1,
+          "opclasses": [
+            {
+              "schema": "tin",
+              "name": "tin_text_ops"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

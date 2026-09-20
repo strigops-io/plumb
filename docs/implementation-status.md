@@ -31,7 +31,19 @@ Repository: `strigops-io/plumb`. Starting revision:
 | SQL baseline harness | Implemented and exercised locally | benches/baseline.sql: deterministic corpus, full ID multiset checks, arithmetic oracle, JSON plans |
 | Production readiness / hosted escape hatch | Unproven | No performance, operational or complete hosted-compatibility conclusion yet |
 
-## Checkpoint 005 validation
+## Checkpoint 006 benchmark tooling
+
+- Added independent libpq-service endpoints for Plumb and TIN, explicit guarded
+  preparation and read-only comparison of logical IDs, native scores/ranking,
+  highlights and natural plans/timings.
+- 55 offline tests pass. Real separate servers (Plumb/PG18.6 and public Lead tin/
+  PG17.10) passed all ten cases with exact score bits, ranking and highlights.
+- Hosted PlanetScale TIN remains untested; provider labels are operator assertions.
+- No Rust extension changes or extension-suite rerun for this tooling increment.
+- See [checkpoint-006-results.md](checkpoint-006-results.md) and the
+  [two-instance guide](../benches/TWO_INSTANCE_PARITY.md).
+
+## Historical checkpoint 005 validation
 
 - 170 tests pass on real PostgreSQL 17.10 and 18.6 (109 server tests plus 61 host
   tests per run); 383 pure Rust and 38 release postings tests pass. Clippy/format

@@ -1,0 +1,708 @@
+{
+  "report_version": 1,
+  "created_utc": "2026-09-20T02:58:02.381010+00:00",
+  "action": "compare",
+  "run_id": "smoke007",
+  "status": "incomplete",
+  "tin_label": "public-lead",
+  "caveats": [
+    "Hosted PlanetScale TIN parity is unverified unless this report was produced against an authorized hosted TIN service. An extension name is not provenance.",
+    "Public Lead/local TIN runs validate the harness, not real hosted TIN parity; the TIN label is an unverified operator assertion.",
+    "Endpoint identity is an accident guard, not proof against aliases or proxies.",
+    "Independent servers share no snapshot. Before/after fingerprints detect drift but cannot rule out intervening ABA mutations.",
+    "Different hardware, PostgreSQL majors, services, caches and network prevent generic performance superiority claims.",
+    "This bounded deterministic corpus is not full application or full-scale workload coverage. ANSI highlighting is not tested."
+  ],
+  "configuration": {
+    "max_results": 5,
+    "samples": 1,
+    "with_scores": false,
+    "with_highlights": false,
+    "top_k": 20,
+    "atol": 1e-06,
+    "rtol": 1e-05
+  },
+  "endpoints": {
+    "plumb": {
+      "server_version": "18.6",
+      "server_encoding": "UTF8",
+      "client_encoding": "UTF8",
+      "lc_ctype": "C.UTF-8",
+      "lc_collate": "C.UTF-8",
+      "provider": "plumb",
+      "extension_version": "0.1.0",
+      "am": true,
+      "operator": true,
+      "full_score": true,
+      "highlight": true,
+      "schema_exists": true,
+      "can_create_schema": true,
+      "in_recovery": false
+    },
+    "tin": {
+      "server_version": "17.10",
+      "server_encoding": "UTF8",
+      "client_encoding": "UTF8",
+      "lc_ctype": "C.UTF-8",
+      "lc_collate": "C.UTF-8",
+      "provider": "tin",
+      "extension_version": "1.0.3",
+      "am": true,
+      "operator": true,
+      "full_score": true,
+      "highlight": true,
+      "schema_exists": true,
+      "can_create_schema": true,
+      "in_recovery": false
+    }
+  },
+  "markers": {
+    "plumb": {
+      "provider": "plumb",
+      "run_id": "smoke007",
+      "corpus_version": "v1",
+      "seed": 1729,
+      "regular_rows": 1000,
+      "expected_rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290"
+    },
+    "tin": {
+      "provider": "tin",
+      "run_id": "smoke007",
+      "corpus_version": "v1",
+      "seed": 1729,
+      "regular_rows": 1000,
+      "expected_rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290"
+    }
+  },
+  "fingerprints_before": {
+    "plumb": {
+      "rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290"
+    },
+    "tin": {
+      "rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290"
+    }
+  },
+  "cases": [
+    {
+      "name": "common",
+      "query": "common",
+      "status": "incomplete",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 10.336674000427593,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        },
+        "tin": {
+          "match_client_ms": 9.138469999015797,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        }
+      }
+    },
+    {
+      "name": "medium",
+      "query": "medium",
+      "status": "incomplete",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 12.399760002153926,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        },
+        "tin": {
+          "match_client_ms": 13.327646000107052,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        }
+      }
+    },
+    {
+      "name": "rare",
+      "query": "rare",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 21.379712998168543,
+          "returned_rows": 2,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Index Scan",
+                    "Index Name": "docs_pkey",
+                    "Relation Name": "docs"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.28,
+                    "Total Cost": 0.87,
+                    "Plan Rows": 6,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 1.86,
+                    "Actual Total Time": 5.024,
+                    "Actual Rows": 2.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 13,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "docs_pkey",
+                        "Relation Name": "docs",
+                        "Alias": "docs",
+                        "Startup Cost": 0.28,
+                        "Total Cost": 49.91,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 1.86,
+                        "Actual Total Time": 5.022,
+                        "Actual Rows": 2.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Filter": "(body ~~> 'rare'::text)",
+                        "Rows Removed by Filter": 1006,
+                        "Index Searches": 1,
+                        "Shared Hit Blocks": 13,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.656,
+                  "Triggers": [],
+                  "Execution Time": 5.059
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.656,
+              "min_ms": 1.656,
+              "max_ms": 1.656
+            },
+            "server_execution": {
+              "median_ms": 5.059,
+              "min_ms": 5.059,
+              "max_ms": 5.059
+            },
+            "client_round_trip": {
+              "median_ms": 15.112134999071714,
+              "min_ms": 15.112134999071714,
+              "max_ms": 15.112134999071714
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 98.29288100081612,
+          "returned_rows": 2,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Index Scan",
+                    "Index Name": "docs_pkey",
+                    "Relation Name": "docs"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.28,
+                    "Total Cost": 0.87,
+                    "Plan Rows": 6,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 32.813,
+                    "Actual Total Time": 89.549,
+                    "Actual Rows": 2,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 13,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "docs_pkey",
+                        "Relation Name": "docs",
+                        "Alias": "docs",
+                        "Startup Cost": 0.28,
+                        "Total Cost": 49.91,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 32.813,
+                        "Actual Total Time": 89.547,
+                        "Actual Rows": 2,
+                        "Actual Loops": 1,
+                        "Filter": "(body ==> 'rare'::text)",
+                        "Rows Removed by Filter": 1006,
+                        "Shared Hit Blocks": 13,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.49,
+                  "Triggers": [],
+                  "Execution Time": 89.571
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.49,
+              "min_ms": 1.49,
+              "max_ms": 1.49
+            },
+            "server_execution": {
+              "median_ms": 89.571,
+              "min_ms": 89.571,
+              "max_ms": 89.571
+            },
+            "client_round_trip": {
+              "median_ms": 98.86854000069434,
+              "min_ms": 98.86854000069434,
+              "max_ms": 98.86854000069434
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 2,
+        "right_count": 2,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      }
+    },
+    {
+      "name": "and",
+      "query": "common AND medium",
+      "status": "incomplete",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 12.250769999809563,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        },
+        "tin": {
+          "match_client_ms": 15.454341999429744,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        }
+      }
+    },
+    {
+      "name": "or",
+      "query": "rare OR medium",
+      "status": "incomplete",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 12.436187997082015,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        },
+        "tin": {
+          "match_client_ms": 14.854492001177277,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        }
+      }
+    },
+    {
+      "name": "absent",
+      "query": "unfindablexyzzy",
+      "status": "passed",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 18.046157001663232,
+          "returned_rows": 0,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Index Scan",
+                    "Index Name": "docs_pkey",
+                    "Relation Name": "docs"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.28,
+                    "Total Cost": 0.87,
+                    "Plan Rows": 6,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 7.125,
+                    "Actual Total Time": 7.126,
+                    "Actual Rows": 0.0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Shared Hit Blocks": 13,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "docs_pkey",
+                        "Relation Name": "docs",
+                        "Alias": "docs",
+                        "Startup Cost": 0.28,
+                        "Total Cost": 49.91,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 7.125,
+                        "Actual Total Time": 7.125,
+                        "Actual Rows": 0.0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Filter": "(body ~~> 'unfindablexyzzy'::text)",
+                        "Rows Removed by Filter": 1008,
+                        "Index Searches": 1,
+                        "Shared Hit Blocks": 13,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 90,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.528,
+                  "Triggers": [],
+                  "Execution Time": 7.161
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.528,
+              "min_ms": 1.528,
+              "max_ms": 1.528
+            },
+            "server_execution": {
+              "median_ms": 7.161,
+              "min_ms": 7.161,
+              "max_ms": 7.161
+            },
+            "client_round_trip": {
+              "median_ms": 16.619889000139665,
+              "min_ms": 16.619889000139665,
+              "max_ms": 16.619889000139665
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        },
+        "tin": {
+          "match_client_ms": 125.94294200243894,
+          "returned_rows": 0,
+          "timing": {
+            "samples": [
+              {
+                "nodes": [
+                  {
+                    "Node Type": "Limit"
+                  },
+                  {
+                    "Node Type": "Index Scan",
+                    "Index Name": "docs_pkey",
+                    "Relation Name": "docs"
+                  }
+                ],
+                "explain": {
+                  "Plan": {
+                    "Node Type": "Limit",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.28,
+                    "Total Cost": 0.87,
+                    "Plan Rows": 6,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 116.972,
+                    "Actual Total Time": 116.973,
+                    "Actual Rows": 0,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 13,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "docs_pkey",
+                        "Relation Name": "docs",
+                        "Alias": "docs",
+                        "Startup Cost": 0.28,
+                        "Total Cost": 49.91,
+                        "Plan Rows": 504,
+                        "Plan Width": 8,
+                        "Actual Startup Time": 116.971,
+                        "Actual Total Time": 116.971,
+                        "Actual Rows": 0,
+                        "Actual Loops": 1,
+                        "Filter": "(body ==> 'unfindablexyzzy'::text)",
+                        "Rows Removed by Filter": 1008,
+                        "Shared Hit Blocks": 13,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  "Planning": {
+                    "Shared Hit Blocks": 86,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  "Planning Time": 1.398,
+                  "Triggers": [],
+                  "Execution Time": 116.995
+                }
+              }
+            ],
+            "server_planning": {
+              "median_ms": 1.398,
+              "min_ms": 1.398,
+              "max_ms": 1.398
+            },
+            "server_execution": {
+              "median_ms": 116.995,
+              "min_ms": 116.995,
+              "max_ms": 116.995
+            },
+            "client_round_trip": {
+              "median_ms": 124.27851000029477,
+              "min_ms": 124.27851000029477,
+              "max_ms": 124.27851000029477
+            },
+            "client_scope": "psql startup, connection, transaction and EXPLAIN round trip; not server execution time"
+          }
+        }
+      },
+      "matches": {
+        "equal": true,
+        "left_count": 0,
+        "right_count": 0,
+        "missing_count": 0,
+        "extra_count": 0,
+        "missing_ids": [],
+        "extra_ids": []
+      }
+    },
+    {
+      "name": "phrase",
+      "query": "\"quick brown\"",
+      "status": "incomplete",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 11.761658999603242,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        },
+        "tin": {
+          "match_client_ms": 12.073283996869577,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        }
+      }
+    },
+    {
+      "name": "not",
+      "query": "common AND NOT medium",
+      "status": "incomplete",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 10.255119999783346,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        },
+        "tin": {
+          "match_client_ms": 8.272741000837414,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        }
+      }
+    },
+    {
+      "name": "wildcard",
+      "query": "pref*",
+      "status": "incomplete",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 14.493760998448124,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        },
+        "tin": {
+          "match_client_ms": 81.09517099728691,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        }
+      }
+    },
+    {
+      "name": "unicode",
+      "query": "café",
+      "status": "incomplete",
+      "endpoints": {
+        "plumb": {
+          "match_client_ms": 10.730277997936355,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        },
+        "tin": {
+          "match_client_ms": 13.226748000306543,
+          "returned_rows": 6,
+          "match_error": "result_cap_exceeded"
+        }
+      }
+    }
+  ],
+  "selected_suite_errors": [],
+  "fingerprints_after": {
+    "plumb": {
+      "rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290"
+    },
+    "tin": {
+      "rows": 1008,
+      "sha256": "da01637e2975e9d8f2a9e898d4125769e7dc94a94427611b3f73cdd5ce9a9290"
+    }
+  }
+}
