@@ -1,5 +1,11 @@
 # Plumb
 
+Plumb is an independent fork of [PlanetScale Lead](https://github.com/planetscale/lead),
+modified since 2026-09-20. Licensed under **AGPL-3.0-or-later**.
+Plumb is not affiliated with, endorsed by, or supported by PlanetScale.
+PlanetScale, Lead, and TIN are names used by PlanetScale.
+**Do not report Plumb bugs to PlanetScale.** Use [Plumb issues](https://github.com/strigops-io/plumb/issues).
+
 > [!WARNING]
 > **A note from Plumb's maintainers**
 >
@@ -34,12 +40,6 @@ The table below shows execution statistics on the Wikipedia sample benchmark sui
 | COUNT | plumb (postings_v1) | 23.49 ms | 0.73x | **YES** |
 
 *Tested on Wikipedia article corpus using Plumb's default `postings_v1` persistent storage engine and single-node PS-5 resource bounds (512 MB memory, 1/16 vCPU).*
-
-Plumb is an independent fork of [PlanetScale Lead](https://github.com/planetscale/lead),
-modified since 2026-09-20. Licensed under **AGPL-3.0-or-later**.
-Plumb is not affiliated with, endorsed by, or supported by PlanetScale.
-PlanetScale, Lead, and TIN are names used by PlanetScale.
-**Do not report Plumb bugs to PlanetScale.** Use [Plumb issues](https://github.com/strigops-io/plumb/issues).
 
 Plumb installs as `CREATE EXTENSION plumb`, exposes its own `plumb` access method,
 `plumb` schema and scoring functions, and uses **`~~>`** as its search operator.
@@ -198,10 +198,3 @@ Report Plumb issues in [strigops-io/plumb](https://github.com/strigops-io/plumb/
 ## Attribution and license
 
 Derived from PlanetScale Lead. Existing PlanetScale copyright notices and the [AGPL-3.0-or-later license](LICENSE) are preserved. New Plumb code uses the same license. Plumb is an independent investigation; it is not PlanetScale's private TIN implementation and is not an official PlanetScale product.
-
-## ZIP checkpoints
-
-The ZIP includes full Git history. Some extractors drop executable bits, causing
-mode-only changes despite byte-identical committed files. See
-[checkpoint extraction and safe permission repair](docs/checkpoints.md); never reset
-unexplained content changes just to make Git look clean.
