@@ -440,7 +440,7 @@ unsafe extern "C-unwind" fn amgetbitmap(
                 checked(crate::storage::visit_ranges(
                     index,
                     crate::storage::MAX_SEGMENTS,
-                    2048 * 1024 * 1024,
+                    usize::MAX,
                     |reader| {
                         let directory =
                             crate::term_index::load_directory(reader.len(), |offset, len| {
@@ -763,7 +763,7 @@ fn term_stats(index: pg_sys::Oid, query: &str) -> pgrx::JsonB {
                 relation,
                 std::slice::from_ref(&query),
                 crate::storage::MAX_SEGMENTS,
-                2048 * 1024 * 1024,
+                usize::MAX,
             )
             .map_err(|e| e.to_string()),
         );

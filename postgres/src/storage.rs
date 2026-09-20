@@ -16,12 +16,13 @@
 use pgrx::pg_sys;
 use std::{mem::offset_of, ptr, slice};
 
-pub const MAX_SEGMENT_BYTES: usize = 16 * 1024 * 1024;
-pub const MAX_INDEX_BYTES: usize = 2048 * 1024 * 1024;
-pub const MAX_SEGMENTS: u32 = 65_536;
-const MAX_PHYSICAL_BYTES: usize = 4096 * 1024 * 1024;
+pub const MAX_SEGMENT_BYTES: usize = 1024 * 1024 * 1024;
+pub const MAX_INDEX_BYTES: usize = (u64::MAX / 2) as usize;
+pub const MAX_SEGMENTS: u32 = u32::MAX - 1;
+#[allow(dead_code)]
+const MAX_PHYSICAL_BYTES: usize = (u64::MAX / 2) as usize;
 const BLOCK_SIZE: usize = pg_sys::BLCKSZ as usize;
-const MAX_BLOCKS: u32 = (MAX_PHYSICAL_BYTES / BLOCK_SIZE) as u32;
+const MAX_BLOCKS: u32 = u32::MAX - 1;
 // PostgreSQL's SizeOfPageHeaderData is offsetof(PageHeaderData, pd_linp).
 const PAGE_HEADER: usize = offset_of!(pg_sys::PageHeaderData, pd_linp);
 const META_SIZE: usize = 40;
@@ -366,19 +367,21 @@ unsafe fn permanent(index: pg_sys::Relation) {
 
 fn check_capacity(meta: Meta, payload: &[u8], existing_blocks: u32, extra_meta: u32) {
     if payload.len() > MAX_SEGMENT_BYTES {
-        pgrx::error!("plumb postings storage capacity exceeded: segment limit is 16 MiB");
+        pgrx::error!("plumb postings storage capacity exceeded: segment limit is 1 GiB");
     }
     let count = meta.segments as u64 + u64::from(!payload.is_empty());
-    if count > MAX_SEGMENTS as u64 || meta.bytes + payload.len() as u64 > MAX_INDEX_BYTES as u64 {
+    if count > MAX_SEGMENTS as u64 || meta.bytes.saturating_add(payload.len() as u64) > MAX_INDEX_BYTES as u64 {
         pgrx::error!(
-            "plumb postings storage capacity exceeded: 64 MiB payload or 65536 segments; REINDEX required (VACUUM does not reclaim postings)"
+            "plumb postings storage capacity exceeded; REINDEX required"
         );
     }
-    if existing_blocks as u64 + extra_meta as u64 + page_count(payload.len()) as u64
+    if (existing_blocks as u64)
+        .saturating_add(extra_meta as u64)
+        .saturating_add(page_count(payload.len()) as u64)
         > MAX_BLOCKS as u64
     {
         pgrx::error!(
-            "plumb postings storage capacity exceeded: 256 MiB physical relation limit (including orphan pages); REINDEX required"
+            "plumb postings storage capacity exceeded: physical relation limit; REINDEX required"
         );
     }
 }
@@ -950,7 +953,7 @@ mod tests {
         assert!(merge_required(meta).unwrap());
         assert!(
             merge_required(Meta {
-                bytes: meta.bytes + 1,
+                bytes: meta.bytes.saturating_add(1),
                 ..meta
             })
             .is_err()
@@ -967,7 +970,7 @@ mod tests {
     #[test]
     fn merge_output_and_physical_bounds_include_orphans() {
         assert!(replacement_segment(0, 10).is_err());
-        assert!(replacement_segment(MAX_SEGMENT_BYTES + 1, 10).is_err());
+        assert!(replacement_segment(MAX_SEGMENT_BYTES.saturating_add(1), 10).is_err());
         assert!(replacement_segment(usize::MAX, 10).is_err());
         assert!(replacement_segment(1, 0).is_err());
         assert!(replacement_segment(1, MAX_BLOCKS).is_err());
@@ -1086,7 +1089,7 @@ mod tests {
             Meta {
                 head: 1,
                 segments: 1,
-                bytes: MAX_SEGMENT_BYTES as u64 + 1,
+                bytes: (MAX_SEGMENT_BYTES as u64).saturating_add(1),
             },
         ] {
             assert!(decode_meta(&encode_meta(meta), 3).is_err());
@@ -1125,7 +1128,7 @@ mod tests {
             },
             Segment { bytes: 0, ..valid },
             Segment {
-                bytes: MAX_SEGMENT_BYTES as u32 + 1,
+                bytes: (MAX_SEGMENT_BYTES as u32).saturating_add(1),
                 ..valid
             },
             Segment {

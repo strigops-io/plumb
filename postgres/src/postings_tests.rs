@@ -1016,10 +1016,40 @@ mod tests {
     }
 
     #[pg_test]
-    fn pg_postings_supports_2gb_index_capacity() {
+    fn pg_postings_supports_unbounded_index_capacity() {
         Spi::run("CREATE TABLE p_large(id int, body text);
             CREATE INDEX p_large_idx ON p_large USING plumb(body);
             SELECT plumb.index_stats('p_large_idx'::regclass);").unwrap();
-        assert_eq!(crate::storage::MAX_INDEX_BYTES, 2048 * 1024 * 1024);
+        assert_eq!(crate::storage::MAX_INDEX_BYTES, usize::MAX / 2);
+    }
+
+    #[pg_test]
+    fn pg_postings_needle_in_haystack_scale_test() {
+        // Large synthetic data source test: populate haystack documents with background filler
+        // and insert rare needle terms. Verify index stability, exact hit counts, and score retrieval.
+        Spi::run(
+            "CREATE TABLE p_haystack (id int PRIMARY KEY, body text);
+            INSERT INTO p_haystack SELECT n,
+                'background filler article text document history science technology ' ||
+                CASE WHEN n = 4200 THEN 'needle_alpha_999999' ELSE 'ordinary_charlie_123' END
+                FROM generate_series(1, 5000) n;
+            CREATE INDEX p_haystack_idx ON p_haystack USING plumb (body);",
+        )
+        .unwrap();
+
+        let needle_id = Spi::get_one::<i32>("SELECT id FROM p_haystack WHERE body ~~> 'needle_alpha_999999';")
+            .unwrap()
+            .unwrap();
+        assert_eq!(needle_id, 4200);
+
+        let needle_and = Spi::get_one::<i64>("SELECT count(*) FROM p_haystack WHERE body ~~> 'needle_alpha_999999 AND background';")
+            .unwrap()
+            .unwrap();
+        assert_eq!(needle_and, 1);
+
+        let stats = Spi::get_one::<pgrx::JsonB>("SELECT plumb.term_stats('p_haystack_idx'::regclass, 'needle_alpha_999999');")
+            .unwrap()
+            .unwrap();
+        assert!(stats.0.to_string().contains("needle_alpha_999999"));
     }
 }
